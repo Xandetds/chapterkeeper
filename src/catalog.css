@@ -1,0 +1,26 @@
+.catalog {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 30px; /* mais espaço entre os cards */
+  margin-top: 30px;
+}
+
+.catalog-card {
+  border-radius: 12px;
+  height: 260px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+  transition: transform 0.2s ease;
+  overflow: hidden;
+}
+
+.catalog-card:hover {
+  transform: scale(1.05);
+}

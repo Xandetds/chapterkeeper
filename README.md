@@ -1,58 +1,12 @@
-<table>
-  <tr>
-    <td style="vertical-align: middle; width:70%; border: none;">
-      <h1> 📚 ChapterKeeper</h1>
-      <p>
-        O <b>ChapterKeeper</b> é um hub pessoal para organizar e acessar facilmente capítulos de qualquer leitura — sejam livros, mangás ou o que preferir.
-      </p>
-      <p>
-        O projeto nasceu para resolver um problema real: a perda dos meus Speed Dials do Opera GX,
-        onde eu mantinha todos os links dos capítulos que estava acompanhando.
-      </p>
-      <p>
-        A ideia é ter uma solução prática, visual e acessível de qualquer lugar,
-        sem depender do navegador.
-      </p>
-    </td>
-    <td style="width:30%; border: none;" align="center">
-      <img src="https://i.pinimg.com/originals/ff/d3/f2/ffd3f27d864b65be3cd983225917d580.gif" width="200" alt="banner">
-    </td>
-  </tr>
-</table>
+# React + Vite
 
----
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## 🚀 Funcionalidades
+Currently, two official plugins are available:
 
-- Armazena links de capítulos em um layout estilo catálogo  
-- Permite busca rápida por nome do título  
-- Interface simples e prática para uso diário  
-- Acessível como se fosse um site, sem depender do navegador para guardar Speed Dials
-- Possibilidade de cada usuário adicionar seus próprios capítulos de onde pararam.
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
+## Expanding the ESLint configuration
 
----
-
-## 🛠️ Tecnologias
-
-- **React** para o front-end  
-- **GitHub Pages** para deploy estático e acesso como site  
-
----
-
-## 🌐 Como usar
-
-1. Acesse o site publicado via GitHub Pages.  
-2. Navegue pelo catálogo de leituras.  
-3. Use a barra de pesquisa para encontrar rapidamente um título ou capítulo.  
-
----
-
-## 📌 Objetivo
-
-Esse projeto nasceu como uma solução real para organizar meus capítulos de leitura favoritos após perder meus Speed Dials do Opera GX.  
-
-Agora, ele funciona como um **hub centralizado e permanente**, acessível de qualquer dispositivo.  
-
----
-
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
