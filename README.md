@@ -14,8 +14,8 @@ onde eu mantinha todos os links dos capítulos que estava acompanhando.
 </p>
 
 <p>
-A ideia é ter uma solução prática, visual e acessível de qualquer lugar,
-sem depender do navegador.
+Agora, o projeto evoluiu para armazenar os dados em <b>Firebase Firestore</b>,
+garantindo que os capítulos fiquem salvos e acessíveis em qualquer dispositivo.
 </p>
 
 </td>
@@ -33,30 +33,42 @@ sem depender do navegador.
 - Armazena links de capítulos em um layout estilo catálogo  
 - Permite busca rápida por nome do título  
 - Interface simples e prática para uso diário  
-- Acessível como se fosse um site, sem depender do navegador para guardar Speed Dials  
-- Possibilidade de cada usuário adicionar seus próprios capítulos de onde pararam  
+- Acessível como site via GitHub Pages  
+- Dados salvos no **Firebase Firestore** (persistência real em nuvem)  
+- Possibilidade de adicionar, editar e abrir capítulos de onde pararam  
 
 ---
 
 ## 🛠 Tecnologias
 
 - **React** para o front-end  
-- **GitHub Pages** para deploy estático e acesso como site  
+- **Firebase Firestore** para armazenamento em nuvem  
+- **Material UI (MUI)** para os componentes visuais  
+- **GitHub Pages** para deploy estático  
 
 ---
 
 ## 🌐 Como usar
 
 1. Acesse o site publicado via GitHub Pages.  
-2. Navegue pelo catálogo de leituras.  
-3. Use a barra de pesquisa para encontrar rapidamente um título ou capítulo.  
+2. Veja os capítulos já cadastrados.  
+3. Use a barra de pesquisa para encontrar rapidamente um título.  
+4. Clique com o botão direito em um card para **editar** o capítulo.  
+5. Clique no card para abrir o link do capítulo em uma nova aba.  
 
 ---
 
 ## 🎯 Objetivo
 
-Esse projeto nasceu como uma solução real para organizar meus capítulos de leitura favoritos após perder meus Speed Dials do Opera GX.  
+O ChapterKeeper nasceu como uma solução para organizar meus capítulos de leitura favoritos após perder meus Speed Dials do Opera GX.  
 
-Agora, ele funciona como um **hub centralizado e permanentemente**, acessível de qualquer dispositivo.  
+Com a integração ao **Firebase Firestore**, ele agora é um hub centralizado e permanente, acessível de qualquer dispositivo.  
 
 ---
+
+## 🚀 Futuro
+
+- Adicionar suporte a usuários diferentes  
+- Personalizar cores e imagens de capa para cada card  
+- Criar versão mobile mais otimizada  
+
