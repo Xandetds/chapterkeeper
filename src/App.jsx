@@ -9,9 +9,17 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import { styled, alpha } from "@mui/material/styles";
-import { booksData } from "./data/books";
 import BookForm from "./components/BookForm";
 import "./catalog.css";
+import { db } from "./firebase";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  doc,
+  setDoc,
+} from "firebase/firestore";
 
 function App() {
   const [books, setBooks] = useState([]);
@@ -55,38 +63,51 @@ function App() {
     if (!url) return "#2c2c2c";
     const domain = new URL(url).hostname.replace("www.", "");
     if (!colorMap[domain]) {
-      // gera cor aleatória se ainda não existir
       colorMap[domain] = `hsl(${Math.floor(Math.random() * 360)}, 60%, 40%)`;
     }
     return colorMap[domain];
   };
 
-  // Carregar livros
+  // Carregar livros do Firestore OU migrar do localStorage
   useEffect(() => {
-    const savedBooks = JSON.parse(localStorage.getItem("books"));
-    if (Array.isArray(savedBooks) && savedBooks.length > 0) {
-      setBooks(savedBooks);
-    } else {
-      const withIds = booksData.map((book, index) => ({
-        id: index + 1,
-        ...book,
-      }));
-      setBooks(withIds);
-      localStorage.setItem("books", JSON.stringify(withIds));
-    }
+    const fetchBooks = async () => {
+      const querySnapshot = await getDocs(collection(db, "books"));
+      if (!querySnapshot.empty) {
+        // Se já tem livros no Firestore, usa eles
+        const booksList = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setBooks(booksList);
+      } else {
+        // Se Firestore estiver vazio, migra do localStorage
+        const savedBooks = JSON.parse(localStorage.getItem("books")) || [];
+        if (savedBooks.length > 0) {
+          for (const book of savedBooks) {
+            await addDoc(collection(db, "books"), book);
+          }
+          setBooks(savedBooks);
+          // Marca que já migrou, para não repetir
+          localStorage.removeItem("books");
+        }
+      }
+    };
+    fetchBooks();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("books", JSON.stringify(books));
-  }, [books]);
-
   // Salvar ou editar livro
-  const saveBook = (book) => {
+  const saveBook = async (book) => {
     if (book.id) {
-      const updated = books.map((b) => (b.id === book.id ? book : b));
-      setBooks(updated);
+      const ref = doc(db, "books", book.id);
+      await updateDoc(ref, {
+        title: book.title,
+        url: book.url,
+        chapter: book.chapter,
+      });
+      setBooks(books.map((b) => (b.id === book.id ? book : b)));
     } else {
-      setBooks([...books, { ...book, id: books.length + 1 }]);
+      const docRef = await addDoc(collection(db, "books"), book);
+      setBooks([...books, { ...book, id: docRef.id }]);
     }
   };
 
