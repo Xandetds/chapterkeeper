@@ -18,8 +18,8 @@ import {
   addDoc,
   updateDoc,
   doc,
-  setDoc,
 } from "firebase/firestore";
+import { booksData } from "./data/books"; // Importa tua lista inicial
 
 function App() {
   const [books, setBooks] = useState([]);
@@ -68,28 +68,29 @@ function App() {
     return colorMap[domain];
   };
 
-  // Carregar livros do Firestore OU migrar do localStorage
+  // Carregar livros do Firestore ou migrar do books.js
   useEffect(() => {
     const fetchBooks = async () => {
       const querySnapshot = await getDocs(collection(db, "books"));
+
       if (!querySnapshot.empty) {
-        // Se já tem livros no Firestore, usa eles
+        // Já tem livros no Firestore → carrega eles
         const booksList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
         setBooks(booksList);
       } else {
-        // Se Firestore estiver vazio, migra do localStorage
-        const savedBooks = JSON.parse(localStorage.getItem("books")) || [];
-        if (savedBooks.length > 0) {
-          for (const book of savedBooks) {
-            await addDoc(collection(db, "books"), book);
-          }
-          setBooks(savedBooks);
-          // Marca que já migrou, para não repetir
-          localStorage.removeItem("books");
+        // Firestore vazio → migra do books.js
+        for (const book of booksData) {
+          await addDoc(collection(db, "books"), book);
         }
+        const newSnapshot = await getDocs(collection(db, "books"));
+        const migratedBooks = newSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setBooks(migratedBooks);
       }
     };
     fetchBooks();
@@ -119,7 +120,10 @@ function App() {
   return (
     <Box sx={{ backgroundColor: "#121212", minHeight: "100vh" }}>
       {/* Navbar */}
-      <AppBar position="static" sx={{ background: "linear-gradient(90deg, #6a11cb, #2575fc)" }}>
+      <AppBar
+        position="static"
+        sx={{ background: "linear-gradient(90deg, #6a11cb, #2575fc)" }}
+      >
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             ChapterKeeper
