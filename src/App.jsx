@@ -19,7 +19,7 @@ import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { styled, alpha } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import BookForm from "./components/BookForm";
 import "./catalog.css";
 import { db, auth, googleProvider, storage } from "./firebase";
@@ -40,112 +40,98 @@ import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 const theme = createTheme({
   palette: {
     mode: "dark",
-    primary: { main: "#7c5cfc" },
-    secondary: { main: "#00d4ff" },
-    background: { default: "#0d0d12", paper: "#16161f" },
-    text: { primary: "#f0f0ff", secondary: "#8080a0" },
+    primary: { main: "#e8eaeb" },
+    background: { default: "#111418", paper: "#1c2228" },
+    text: { primary: "#e8eaeb", secondary: "#8fa3b2" },
+    divider: "rgba(255,255,255,0.07)",
   },
   typography: {
     fontFamily: '"Inter", system-ui, sans-serif',
     h5: { fontWeight: 800, letterSpacing: "-0.03em" },
     h6: { fontWeight: 700, letterSpacing: "-0.02em" },
+    button: { textTransform: "none", fontWeight: 600 },
   },
-  shape: { borderRadius: 10 },
+  shape: { borderRadius: 8 },
   components: {
     MuiAppBar: { styleOverrides: { root: { backgroundImage: "none" } } },
     MuiDialog: {
       styleOverrides: {
         paper: {
           backgroundImage: "none",
-          border: "1px solid rgba(255,255,255,0.06)",
+          backgroundColor: "#1c2228",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 12,
         },
       },
     },
     MuiTextField: {
       styleOverrides: {
         root: {
-          "& .MuiOutlinedInput-root fieldset": {
-            borderColor: "rgba(255,255,255,0.1)",
-          },
-          "& .MuiOutlinedInput-root:hover fieldset": {
-            borderColor: "rgba(255,255,255,0.2)",
-          },
+          "& .MuiOutlinedInput-root fieldset": { borderColor: "rgba(255,255,255,0.1)" },
+          "& .MuiOutlinedInput-root:hover fieldset": { borderColor: "rgba(255,255,255,0.18)" },
+          "& .MuiOutlinedInput-root.Mui-focused fieldset": { borderColor: "rgba(255,255,255,0.35)" },
         },
       },
     },
     MuiButton: {
       styleOverrides: {
-        contained: { textTransform: "none", fontWeight: 600 },
-        outlined: { textTransform: "none" },
-        text: { textTransform: "none" },
+        root: { textTransform: "none", fontWeight: 600 },
+        contained: {
+          backgroundColor: "#e8eaeb",
+          color: "#111418",
+          "&:hover": { backgroundColor: "#fff" },
+        },
       },
     },
+    MuiTab: { styleOverrides: { root: { textTransform: "none" } } },
     MuiMenu: {
       styleOverrides: {
-        paper: { backgroundImage: "none", border: "1px solid rgba(255,255,255,0.07)" },
+        paper: {
+          backgroundImage: "none",
+          backgroundColor: "#1c2228",
+          border: "1px solid rgba(255,255,255,0.08)",
+        },
       },
     },
   },
 });
 
-// ── Search bar (fora do componente para não recriar a cada render) ──
-const SearchWrap = styled("div")(({ theme }) => ({
+// ── Search (fora do componente para não recriar a cada render) ──
+const SearchWrap = styled("div")({
   position: "relative",
   display: "flex",
   alignItems: "center",
-  borderRadius: 8,
-  backgroundColor: "rgba(255,255,255,0.07)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  transition: "background 0.15s ease, border-color 0.15s ease",
+  borderRadius: 7,
+  backgroundColor: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.07)",
+  transition: "background 0.15s, border-color 0.15s",
   "&:focus-within": {
-    backgroundColor: "rgba(255,255,255,0.11)",
-    borderColor: "rgba(124, 92, 252, 0.5)",
+    backgroundColor: "rgba(255,255,255,0.09)",
+    borderColor: "rgba(255,255,255,0.18)",
   },
-  marginLeft: theme.spacing(2),
-}));
+});
 
-const SearchIconBox = styled("div")(({ theme }) => ({
-  padding: theme.spacing(0, 1.5),
-  height: "100%",
+const SearchIconBox = styled("div")({
+  padding: "0 10px 0 12px",
   position: "absolute",
-  pointerEvents: "none",
+  top: 0, bottom: 0,
   display: "flex",
   alignItems: "center",
-  color: "rgba(255,255,255,0.4)",
-}));
+  pointerEvents: "none",
+  color: "rgba(255,255,255,0.35)",
+});
 
-const SearchInput = styled("input")(({ theme }) => ({
-  color: "#f0f0ff",
+const SearchInput = styled("input")({
+  color: "#e8eaeb",
   background: "transparent",
   border: "none",
   outline: "none",
-  padding: "8px 12px 8px 40px",
-  width: "26ch",
-  fontSize: "0.88rem",
+  padding: "8px 12px 8px 38px",
+  width: "24ch",
+  fontSize: "0.875rem",
   fontFamily: "inherit",
-  "::placeholder": { color: "rgba(255,255,255,0.3)" },
-}));
-
-// ── Gradientes para cards sem imagem ──
-const GRADIENTS = [
-  "linear-gradient(160deg, #1a1040 0%, #4c1d95 100%)",
-  "linear-gradient(160deg, #0f1f3d 0%, #1e429f 100%)",
-  "linear-gradient(160deg, #0e2a1a 0%, #065f46 100%)",
-  "linear-gradient(160deg, #3b0a0a 0%, #991b1b 100%)",
-  "linear-gradient(160deg, #0e1f2a 0%, #0369a1 100%)",
-  "linear-gradient(160deg, #1e0a3b 0%, #6d28d9 100%)",
-  "linear-gradient(160deg, #0d2626 0%, #0f766e 100%)",
-  "linear-gradient(160deg, #2a1505 0%, #b45309 100%)",
-  "linear-gradient(160deg, #1a0e2a 0%, #86198f 100%)",
-  "linear-gradient(160deg, #0a1a1f 0%, #0e7490 100%)",
-];
-
-function getGradient(id = "", title = "") {
-  const s = id || title;
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
-  return GRADIENTS[Math.abs(h) % GRADIENTS.length];
-}
+  "&::placeholder": { color: "rgba(255,255,255,0.28)" },
+});
 
 // ── Utilitários ──
 function extractNameFromUrl(url) {
@@ -154,19 +140,19 @@ function extractNameFromUrl(url) {
     const raw = url.startsWith("http") ? url : "https://" + url;
     const { pathname } = new URL(raw);
     const patterns = [
-      { re: /\/leitor\/([^/]+)\/\d+/, sep: "_" },
-      { re: /\/manga\/([^/]+)\/cap-/ },
-      { re: /\/comics?\/([^/]+)\/cap-/ },
-      { re: /\/serie\/([^/]+)\/cap-/ },
-      { re: /\/comicz\/([^/]+)\/cap-/ },
-      { re: /\/ler\/([^/]+)\/(?:online|cap-)/ },
-      { re: /\/capitulos\/(.+?)-capitulo-/ },
+      /\/leitor\/([^/]+)\/\d+/,
+      /\/manga\/([^/]+)\/cap-/,
+      /\/comics?\/([^/]+)\/cap-/,
+      /\/serie\/([^/]+)\/cap-/,
+      /\/comicz\/([^/]+)\/cap-/,
+      /\/ler\/([^/]+)\/(?:online|cap-)/,
+      /\/capitulos\/(.+?)-capitulo-/,
     ];
-    for (const { re, sep } of patterns) {
+    for (const re of patterns) {
       const m = pathname.match(re);
       if (m) {
-        let name = m[1]
-          .replace(sep === "_" ? /_/g : /-/g, " ")
+        const name = m[1]
+          .replace(/[_-]/g, " ")
           .replace(/\d+_\d+[\w_]*/g, "")
           .replace(/\s+/g, " ")
           .trim()
@@ -198,7 +184,7 @@ function formatDate(ts) {
   return d.toLocaleDateString("pt-BR");
 }
 
-// ── Migração da coleção antiga ──
+// ── Migração coleção antiga → users/{uid}/books ──
 async function migrateOldData(uid) {
   const oldSnap = await getDocs(collection(db, "books"));
   if (oldSnap.empty) return;
@@ -232,10 +218,7 @@ function App() {
   const [anchorEl, setAnchorEl] = useState(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
+    const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setAuthLoading(false); });
     return unsub;
   }, []);
 
@@ -271,11 +254,10 @@ function App() {
         imageUrl = await getDownloadURL(storageRef);
       } catch (err) {
         console.error(err);
-        alert("Erro no upload da imagem. Verifique as regras do Firebase Storage.");
+        alert("Erro no upload. Verifique as regras do Firebase Storage.");
         return;
       }
     }
-
     const payload = {
       title: book.title,
       chapter: book.chapter || "",
@@ -283,7 +265,6 @@ function App() {
       imageUrl,
       updatedAt: serverTimestamp(),
     };
-
     if (book.id) {
       await updateDoc(doc(db, "users", user.uid, "books", book.id), payload);
       const now = new Date();
@@ -312,24 +293,25 @@ function App() {
   );
 
   const openEdit = (book, e) => {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
+    e?.preventDefault();
+    e?.stopPropagation();
     setCurrentBook(book);
     setOpenForm(true);
   };
 
-  // ── Loading ──
+  // Loading
   if (authLoading) {
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
-          <Typography sx={{ color: "text.secondary" }}>Carregando…</Typography>
+          <Typography sx={{ color: "text.secondary", fontSize: "0.9rem" }}>Carregando…</Typography>
         </Box>
       </ThemeProvider>
     );
   }
 
-  // ── Login ──
+  // ── Tela de login ──
   if (!user) {
     return (
       <ThemeProvider theme={theme}>
@@ -341,31 +323,47 @@ function App() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            background: "radial-gradient(ellipse at 50% 40%, rgba(124,92,252,0.12) 0%, transparent 70%), #0d0d12",
+            background: "#111418",
             gap: 2,
           }}
         >
-          <Typography variant="h5" sx={{ fontSize: "2.4rem", color: "#f0f0ff" }}>
+          {/* Logo */}
+          <Box
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: 2,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              mb: 1,
+            }}
+          >
+            <Typography sx={{ fontSize: "1.6rem", lineHeight: 1 }}>📚</Typography>
+          </Box>
+
+          <Typography
+            variant="h5"
+            sx={{ fontSize: "1.9rem", fontWeight: 800, letterSpacing: "-0.04em", color: "#f0f0f0" }}
+          >
             ChapterKeeper
           </Typography>
-          <Typography sx={{ color: "text.secondary", mb: 3 }}>
+          <Typography sx={{ color: "text.secondary", fontSize: "0.9rem", mb: 2 }}>
             Sua biblioteca pessoal
           </Typography>
+
           <Button
             variant="contained"
             size="large"
             onClick={handleSignIn}
             sx={{
-              background: "linear-gradient(135deg, #7c5cfc, #5b8af5)",
-              px: 5,
-              py: 1.4,
-              fontSize: "0.95rem",
-              borderRadius: "10px",
-              boxShadow: "0 4px 24px rgba(124,92,252,0.35)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #8f72fd, #6e9af8)",
-                boxShadow: "0 6px 30px rgba(124,92,252,0.5)",
-              },
+              px: 4,
+              py: 1.2,
+              fontSize: "0.9rem",
+              borderRadius: "8px",
+              letterSpacing: "0.01em",
             }}
           >
             Entrar com Google
@@ -386,26 +384,30 @@ function App() {
           position="sticky"
           elevation={0}
           sx={{
-            background: "rgba(13,13,18,0.82)",
-            backdropFilter: "blur(22px)",
-            WebkitBackdropFilter: "blur(22px)",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
+            background: "rgba(17, 20, 24, 0.88)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
           }}
         >
-          <Toolbar sx={{ gap: 1 }}>
-            <Typography variant="h6" sx={{ flexGrow: 1, fontSize: "1.1rem" }}>
+          <Toolbar sx={{ gap: 1.5, minHeight: "52px !important" }}>
+            <Typography
+              variant="h6"
+              sx={{ flexGrow: 1, fontSize: "1rem", fontWeight: 700, letterSpacing: "-0.02em" }}
+            >
               ChapterKeeper
             </Typography>
 
-            {/* Contagem */}
-            <Typography variant="body2" sx={{ color: "text.secondary", display: { xs: "none", sm: "block" } }}>
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", fontSize: "0.8rem", display: { xs: "none", sm: "block" } }}
+            >
               {books.length} {books.length === 1 ? "livro" : "livros"}
             </Typography>
 
-            {/* Busca */}
             <SearchWrap>
               <SearchIconBox>
-                <SearchIcon sx={{ fontSize: 18 }} />
+                <SearchIcon sx={{ fontSize: 16 }} />
               </SearchIconBox>
               <SearchInput
                 placeholder="Buscar…"
@@ -414,35 +416,41 @@ function App() {
               />
             </SearchWrap>
 
-            {/* Avatar */}
             <Tooltip title={user.displayName || user.email}>
-              <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ ml: 0.5, p: 0.5 }}>
-                <Avatar src={user.photoURL} alt={user.displayName} sx={{ width: 32, height: 32 }} />
+              <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ p: 0.5 }}>
+                <Avatar src={user.photoURL} alt={user.displayName} sx={{ width: 30, height: 30 }} />
               </IconButton>
             </Tooltip>
-            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-              <MenuItem disabled sx={{ fontSize: "0.8rem", opacity: "1 !important", color: "text.secondary" }}>
+
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={() => setAnchorEl(null)}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            >
+              <MenuItem disabled sx={{ fontSize: "0.78rem", opacity: "1 !important", color: "text.secondary" }}>
                 {user.email}
               </MenuItem>
-              <MenuItem onClick={handleSignOut}>
-                <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+              <MenuItem onClick={handleSignOut} sx={{ fontSize: "0.88rem" }}>
+                <LogoutIcon fontSize="small" sx={{ mr: 1.5 }} />
                 Sair
               </MenuItem>
             </Menu>
           </Toolbar>
         </AppBar>
 
-        {/* Grade */}
+        {/* Grade de cards */}
         <Container maxWidth="xl" sx={{ pt: 3 }}>
           <div className="catalog">
             {filtered.map((book) => (
               <div
                 key={book.id}
                 className="catalog-card"
-                style={{ background: getGradient(book.id, book.title) }}
                 onClick={() => window.open(book.url, "_blank")}
                 onContextMenu={(e) => openEdit(book, e)}
               >
+                {/* Imagem de capa (se houver) */}
                 {book.imageUrl && (
                   <img
                     src={book.imageUrl}
@@ -452,33 +460,30 @@ function App() {
                   />
                 )}
 
+                {/* Overlay com info */}
                 <div className={`card-overlay${book.imageUrl ? "" : " card-overlay--full"}`}>
                   <span className="card-title">{book.title}</span>
                   <span className="card-meta">
                     {book.chapter && `Cap. ${book.chapter}`}
+                    {book.updatedAt && (
+                      <span className="card-date">{formatDate(book.updatedAt)}</span>
+                    )}
                   </span>
-                  {book.updatedAt && (
-                    <span className="card-date">{formatDate(book.updatedAt)}</span>
-                  )}
                 </div>
 
-                {/* Botão de editar (hover) */}
-                <div
-                  className="card-edit-btn"
-                  onClick={(e) => openEdit(book, e)}
-                  title="Editar"
-                >
-                  <EditIcon sx={{ fontSize: 14 }} />
+                {/* Botão editar no hover */}
+                <div className="card-edit-btn" onClick={(e) => openEdit(book, e)} title="Editar">
+                  <EditIcon sx={{ fontSize: 13 }} />
                 </div>
               </div>
             ))}
 
-            {/* Card adicionar */}
+            {/* Card de adicionar */}
             <div
               className="catalog-card catalog-card--add"
               onClick={() => { setCurrentBook(null); setOpenForm(true); }}
             >
-              <AddIcon sx={{ fontSize: 30, color: "rgba(124,92,252,0.7)" }} />
+              <AddIcon sx={{ fontSize: 26, color: "rgba(255,255,255,0.28)" }} />
               <span>Adicionar</span>
             </div>
           </div>

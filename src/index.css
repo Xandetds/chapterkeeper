@@ -5,8 +5,8 @@
 body {
   margin: 0;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
-  background-color: #0d0d12;
-  color: #f0f0ff;
+  background-color: #111418;
+  color: #e8eaeb;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -16,18 +16,18 @@ h1, h2, h3 {
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d0d12;
+  background: #111418;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2a3a;
+  background: #2c3440;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a50;
+  background: #3a4555;
 }
