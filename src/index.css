@@ -4,30 +4,37 @@
 
 body {
   margin: 0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  background-color: #111418;
-  color: #e8eaeb;
+  font-family: "DM Sans", system-ui, sans-serif;
+  background-color: #0d0c1a;
+  color: #dcd7f5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3 {
   margin: 0;
-  font-weight: 700;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
+/* Warm scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #0d0c1a; }
+::-webkit-scrollbar-thumb { background: #1e1c38; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2c2a50; }
+
+/* Staggered card entrance */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: #111418;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #2c3440;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #3a4555;
+/* Login page entrance */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

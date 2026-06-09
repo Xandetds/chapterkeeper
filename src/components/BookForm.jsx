@@ -22,9 +22,9 @@ function formatDate(ts) {
   return d.toLocaleString("pt-BR");
 }
 
-const emptyForm = { id: null, title: "", chapter: "", url: "", imageUrl: "" };
+const emptyForm = { id: null, title: "", chapter: "", url: "", imageUrl: "", groupId: "" };
 
-function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
+function BookForm({ open, handleClose, saveBook, deleteBook, currentBook, groups = [] }) {
   const [form, setForm] = useState(emptyForm);
   const [imageMode, setImageMode] = useState("url"); // "url" | "file"
   const [imageFile, setImageFile] = useState(null);
@@ -41,6 +41,7 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
         chapter: currentBook.chapter || "",
         url: currentBook.url || "",
         imageUrl: currentBook.imageUrl || "",
+        groupId: currentBook.groupId || "",
       });
       setImagePreview(currentBook.imageUrl || "");
       setImageMode(currentBook.imageUrl ? "url" : "url");
@@ -129,6 +130,26 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
           onChange={handleChange}
           placeholder="https://..."
         />
+
+        {/* Grupo */}
+        {groups.length > 0 && (
+          <TextField
+            select
+            label="Grupo"
+            name="groupId"
+            fullWidth
+            margin="dense"
+            value={form.groupId}
+            onChange={handleChange}
+            SelectProps={{ native: true }}
+            sx={{ mt: 0.5 }}
+          >
+            <option value="">Sem grupo</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </TextField>
+        )}
 
         {/* Imagem */}
         <Box sx={{ mt: 2 }}>
