@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1e1a38"/>
+      <stop offset="100%" stop-color="#0d0c1a"/>
+    </radialGradient>
+    <radialGradient id="moon" cx="38%" cy="38%" r="60%">
+      <stop offset="0%" stop-color="#c4baff"/>
+      <stop offset="100%" stop-color="#8c78ff"/>
+    </radialGradient>
+  </defs>
+  <!-- Background circle -->
+  <rect width="32" height="32" rx="8" fill="url(#bg)"/>
+  <!-- Crescent moon -->
+  <path d="M21 8.5a9 9 0 1 0 0 15 7 7 0 1 1 0-15z" fill="url(#moon)"/>
+</svg>
