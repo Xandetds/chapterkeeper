@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -9,20 +9,29 @@ import {
   Box,
   Typography,
   Divider,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import LinkIcon from "@mui/icons-material/Link";
 
-function formatDate(timestamp) {
-  if (!timestamp) return null;
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  return date.toLocaleString("pt-BR");
+function formatDate(ts) {
+  if (!ts) return null;
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString("pt-BR");
 }
 
 const emptyForm = { id: null, title: "", chapter: "", url: "", imageUrl: "" };
 
 function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
   const [form, setForm] = useState(emptyForm);
+  const [imageMode, setImageMode] = useState("url"); // "url" | "file"
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (currentBook) {
@@ -33,39 +42,66 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
         url: currentBook.url || "",
         imageUrl: currentBook.imageUrl || "",
       });
+      setImagePreview(currentBook.imageUrl || "");
+      setImageMode(currentBook.imageUrl ? "url" : "url");
     } else {
       setForm(emptyForm);
+      setImagePreview("");
     }
+    setImageFile(null);
     setConfirmDelete(false);
+    setSaving(false);
   }, [currentBook, open]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = () => {
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    const preview = URL.createObjectURL(file);
+    setImagePreview(preview);
+    setForm((f) => ({ ...f, imageUrl: "" }));
+  };
+
+  const handleUrlChange = (e) => {
+    setForm({ ...form, imageUrl: e.target.value });
+    setImageFile(null);
+    setImagePreview(e.target.value);
+  };
+
+  const handleSubmit = async () => {
     if (!form.title || !form.url) {
       alert("Preencha pelo menos o título e o link!");
       return;
     }
-    saveBook(form);
+    setSaving(true);
+    await saveBook(form, imageFile || null);
+    setSaving(false);
     handleClose();
   };
 
   const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
+    if (!confirmDelete) { setConfirmDelete(true); return; }
     await deleteBook(form.id);
     handleClose();
   };
 
+  const handleClose_ = () => {
+    setConfirmDelete(false);
+    handleClose();
+  };
+
   const isEditing = Boolean(form.id);
+  const previewSrc = imageMode === "file" ? imagePreview : (form.imageUrl || imagePreview);
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>{isEditing ? "Editar mangá" : "Adicionar mangá"}</DialogTitle>
+    <Dialog open={open} onClose={handleClose_} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ pb: 1, fontWeight: 700 }}>
+        {isEditing ? "Editar livro" : "Adicionar livro"}
+      </DialogTitle>
 
-      <DialogContent sx={{ display: "flex", flexDirection: "column" }}>
+      <DialogContent sx={{ pt: 1 }}>
         <TextField
           label="Título"
           name="title"
@@ -76,7 +112,7 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
           autoFocus
         />
         <TextField
-          label="Capítulo atual"
+          label="Capítulo"
           name="chapter"
           fullWidth
           margin="dense"
@@ -93,51 +129,106 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook }) {
           onChange={handleChange}
           placeholder="https://..."
         />
-        <TextField
-          label="URL da capa (opcional)"
-          name="imageUrl"
-          fullWidth
-          margin="dense"
-          value={form.imageUrl}
-          onChange={handleChange}
-          placeholder="https://... (imagem de capa)"
-          helperText="Cole a URL de qualquer imagem para exibir como capa no card"
-        />
+
+        {/* Imagem */}
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary", mb: 0.5, display: "block" }}>
+            Imagem de capa (opcional)
+          </Typography>
+
+          <Tabs
+            value={imageMode}
+            onChange={(_, v) => setImageMode(v)}
+            sx={{
+              minHeight: 34,
+              mb: 1.5,
+              "& .MuiTab-root": { minHeight: 34, py: 0.5, fontSize: "0.8rem", textTransform: "none" },
+            }}
+          >
+            <Tab icon={<LinkIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="URL" value="url" />
+            <Tab icon={<UploadFileIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Arquivo local" value="file" />
+          </Tabs>
+
+          {imageMode === "url" ? (
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="https://... (URL da imagem de capa)"
+              value={form.imageUrl}
+              onChange={handleUrlChange}
+            />
+          ) : (
+            <Box>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleFileSelect}
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<UploadFileIcon />}
+                onClick={() => fileInputRef.current?.click()}
+                sx={{ textTransform: "none" }}
+              >
+                {imageFile ? imageFile.name : "Escolher imagem…"}
+              </Button>
+            </Box>
+          )}
+
+          {/* Preview */}
+          {previewSrc && (
+            <Box
+              sx={{
+                mt: 1.5,
+                width: 80,
+                height: 112,
+                borderRadius: 1.5,
+                overflow: "hidden",
+                border: "1px solid rgba(255,255,255,0.1)",
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src={previewSrc}
+                alt="preview"
+                style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top" }}
+                onError={(e) => { e.target.style.display = "none"; }}
+              />
+            </Box>
+          )}
+        </Box>
 
         {isEditing && currentBook?.updatedAt && (
           <>
             <Divider sx={{ mt: 2 }} />
-            <Typography variant="caption" sx={{ color: "text.secondary", mt: 1 }}>
+            <Typography variant="caption" sx={{ color: "text.secondary", mt: 1, display: "block" }}>
               Última atualização: {formatDate(currentBook.updatedAt)}
             </Typography>
           </>
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2, justifyContent: "space-between" }}>
+      <DialogActions sx={{ px: 3, pb: 2.5, justifyContent: "space-between" }}>
         {isEditing ? (
           <Button
             variant={confirmDelete ? "contained" : "outlined"}
             color="error"
+            size="small"
             startIcon={<DeleteIcon />}
             onClick={handleDelete}
           >
-            {confirmDelete ? "Confirmar exclusão" : "Deletar"}
+            {confirmDelete ? "Confirmar" : "Deletar"}
           </Button>
         ) : (
           <Box />
         )}
         <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            onClick={() => {
-              setConfirmDelete(false);
-              handleClose();
-            }}
-          >
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={handleSubmit}>
-            {isEditing ? "Salvar" : "Adicionar"}
+          <Button onClick={handleClose_} disabled={saving}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSubmit} disabled={saving}>
+            {saving ? "Salvando…" : isEditing ? "Salvar" : "Adicionar"}
           </Button>
         </Box>
       </DialogActions>

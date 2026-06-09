@@ -11,14 +11,18 @@ import {
   MenuItem,
   IconButton,
   Tooltip,
+  createTheme,
+  ThemeProvider,
+  CssBaseline,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
+import EditIcon from "@mui/icons-material/Edit";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { styled, alpha } from "@mui/material/styles";
 import BookForm from "./components/BookForm";
 import "./catalog.css";
-import { db, auth, googleProvider } from "./firebase";
+import { db, auth, googleProvider, storage } from "./firebase";
 import {
   collection,
   getDocs,
@@ -29,42 +33,121 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 
-// ── Styled components FORA do App para não recriar a cada render (bug da busca) ──
-const Search = styled("div")(({ theme }) => ({
+// ── MUI Theme ──
+const theme = createTheme({
+  palette: {
+    mode: "dark",
+    primary: { main: "#7c5cfc" },
+    secondary: { main: "#00d4ff" },
+    background: { default: "#0d0d12", paper: "#16161f" },
+    text: { primary: "#f0f0ff", secondary: "#8080a0" },
+  },
+  typography: {
+    fontFamily: '"Inter", system-ui, sans-serif',
+    h5: { fontWeight: 800, letterSpacing: "-0.03em" },
+    h6: { fontWeight: 700, letterSpacing: "-0.02em" },
+  },
+  shape: { borderRadius: 10 },
+  components: {
+    MuiAppBar: { styleOverrides: { root: { backgroundImage: "none" } } },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundImage: "none",
+          border: "1px solid rgba(255,255,255,0.06)",
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root fieldset": {
+            borderColor: "rgba(255,255,255,0.1)",
+          },
+          "& .MuiOutlinedInput-root:hover fieldset": {
+            borderColor: "rgba(255,255,255,0.2)",
+          },
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        contained: { textTransform: "none", fontWeight: 600 },
+        outlined: { textTransform: "none" },
+        text: { textTransform: "none" },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: { backgroundImage: "none", border: "1px solid rgba(255,255,255,0.07)" },
+      },
+    },
+  },
+});
+
+// ── Search bar (fora do componente para não recriar a cada render) ──
+const SearchWrap = styled("div")(({ theme }) => ({
   position: "relative",
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: alpha(theme.palette.common.white, 0.15),
-  "&:hover": { backgroundColor: alpha(theme.palette.common.white, 0.25) },
-  marginLeft: theme.spacing(2),
   display: "flex",
   alignItems: "center",
+  borderRadius: 8,
+  backgroundColor: "rgba(255,255,255,0.07)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  transition: "background 0.15s ease, border-color 0.15s ease",
+  "&:focus-within": {
+    backgroundColor: "rgba(255,255,255,0.11)",
+    borderColor: "rgba(124, 92, 252, 0.5)",
+  },
+  marginLeft: theme.spacing(2),
 }));
 
-const SearchIconWrapper = styled("div")(({ theme }) => ({
-  padding: theme.spacing(0, 2),
+const SearchIconBox = styled("div")(({ theme }) => ({
+  padding: theme.spacing(0, 1.5),
   height: "100%",
   position: "absolute",
   pointerEvents: "none",
   display: "flex",
   alignItems: "center",
-  justifyContent: "center",
+  color: "rgba(255,255,255,0.4)",
 }));
 
-const StyledInputBase = styled("input")(({ theme }) => ({
-  color: "inherit",
+const SearchInput = styled("input")(({ theme }) => ({
+  color: "#f0f0ff",
   background: "transparent",
   border: "none",
   outline: "none",
-  padding: theme.spacing(1, 1, 1, 0),
-  paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-  width: "30ch",
-  fontSize: "1rem",
+  padding: "8px 12px 8px 40px",
+  width: "26ch",
+  fontSize: "0.88rem",
+  fontFamily: "inherit",
+  "::placeholder": { color: "rgba(255,255,255,0.3)" },
 }));
 
-// ── Utilitários ──
+// ── Gradientes para cards sem imagem ──
+const GRADIENTS = [
+  "linear-gradient(160deg, #1a1040 0%, #4c1d95 100%)",
+  "linear-gradient(160deg, #0f1f3d 0%, #1e429f 100%)",
+  "linear-gradient(160deg, #0e2a1a 0%, #065f46 100%)",
+  "linear-gradient(160deg, #3b0a0a 0%, #991b1b 100%)",
+  "linear-gradient(160deg, #0e1f2a 0%, #0369a1 100%)",
+  "linear-gradient(160deg, #1e0a3b 0%, #6d28d9 100%)",
+  "linear-gradient(160deg, #0d2626 0%, #0f766e 100%)",
+  "linear-gradient(160deg, #2a1505 0%, #b45309 100%)",
+  "linear-gradient(160deg, #1a0e2a 0%, #86198f 100%)",
+  "linear-gradient(160deg, #0a1a1f 0%, #0e7490 100%)",
+];
 
+function getGradient(id = "", title = "") {
+  const s = id || title;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+  return GRADIENTS[Math.abs(h) % GRADIENTS.length];
+}
+
+// ── Utilitários ──
 function extractNameFromUrl(url) {
   if (!url) return null;
   try {
@@ -72,24 +155,22 @@ function extractNameFromUrl(url) {
     const { pathname } = new URL(raw);
     const patterns = [
       { re: /\/leitor\/([^/]+)\/\d+/, sep: "_" },
-      { re: /\/manga\/([^/]+)\/cap-/, sep: "-" },
-      { re: /\/comics?\/([^/]+)\/cap-/, sep: "-" },
-      { re: /\/serie\/([^/]+)\/cap-/, sep: "-" },
-      { re: /\/comicz\/([^/]+)\/cap-/, sep: "-" },
-      { re: /\/ler\/([^/]+)\/(?:online|cap-)/, sep: "-" },
-      { re: /\/capitulos\/(.+?)-capitulo-/, sep: "-" },
-      { re: /\/manga\/([^/]+)\/?$/, sep: "-" },
+      { re: /\/manga\/([^/]+)\/cap-/ },
+      { re: /\/comics?\/([^/]+)\/cap-/ },
+      { re: /\/serie\/([^/]+)\/cap-/ },
+      { re: /\/comicz\/([^/]+)\/cap-/ },
+      { re: /\/ler\/([^/]+)\/(?:online|cap-)/ },
+      { re: /\/capitulos\/(.+?)-capitulo-/ },
     ];
-    for (const { re } of patterns) {
-      const match = pathname.match(re);
-      if (match) {
-        let name = match[1]
-          .replace(/_/g, " ")
-          .replace(/-/g, " ")
+    for (const { re, sep } of patterns) {
+      const m = pathname.match(re);
+      if (m) {
+        let name = m[1]
+          .replace(sep === "_" ? /_/g : /-/g, " ")
           .replace(/\d+_\d+[\w_]*/g, "")
           .replace(/\s+/g, " ")
-          .trim();
-        name = name.replace(/\b\w/g, (c) => c.toUpperCase());
+          .trim()
+          .replace(/\b\w/g, (c) => c.toUpperCase());
         if (name.length > 3) return name;
       }
     }
@@ -103,61 +184,38 @@ function cleanTitle(title, url) {
     title.startsWith("http") ||
     /^[a-z0-9-]+\.(net|com|org|top|xyz|online|br|cc)/.test(title) ||
     /\.(net|com|org|top)\//.test(title);
-  if (looksLikeUrl) return extractNameFromUrl(url) || title;
-  return title;
+  return looksLikeUrl ? extractNameFromUrl(url) || title : title;
 }
 
-function formatDate(timestamp) {
-  if (!timestamp) return "";
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  const diff = Math.floor((Date.now() - date.getTime()) / 86400000);
+function formatDate(ts) {
+  if (!ts) return "";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
   if (diff === 0) return "hoje";
   if (diff === 1) return "ontem";
   if (diff < 7) return `${diff}d atrás`;
-  if (diff < 30) return `${Math.floor(diff / 7)}sem atrás`;
-  return date.toLocaleDateString("pt-BR");
+  if (diff < 30) return `${Math.floor(diff / 7)}sem`;
+  return d.toLocaleDateString("pt-BR");
 }
 
-const colorCache = {};
-function getCardColor(url) {
-  if (!url) return "#2c2c2c";
-  try {
-    const domain = new URL(url).hostname.replace("www.", "");
-    if (!colorCache[domain]) {
-      let hash = 0;
-      for (let i = 0; i < domain.length; i++) {
-        hash = domain.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      colorCache[domain] = `hsl(${Math.abs(hash) % 360}, 50%, 32%)`;
-    }
-    return colorCache[domain];
-  } catch (_) {
-    return "#2c2c2c";
-  }
-}
-
-// ── Migração: coleção raiz "books" → users/{uid}/books ──
+// ── Migração da coleção antiga ──
 async function migrateOldData(uid) {
   const oldSnap = await getDocs(collection(db, "books"));
   if (oldSnap.empty) return;
-
-  const userBooksRef = collection(db, "users", uid, "books");
-  const userSnap = await getDocs(userBooksRef);
-  if (!userSnap.empty) return; // usuário já tem dados, não migrar
-
-  // Batch em chunks de 240 docs (240 set + 240 delete = 480 ops < 500 limit)
-  const docs = oldSnap.docs;
-  for (let i = 0; i < docs.length; i += 240) {
+  const userRef = collection(db, "users", uid, "books");
+  const userSnap = await getDocs(userRef);
+  if (!userSnap.empty) return;
+  for (let i = 0; i < oldSnap.docs.length; i += 240) {
     const batch = writeBatch(db);
-    docs.slice(i, i + 240).forEach((oldDoc) => {
-      const { id: _storedId, ...rest } = oldDoc.data();
-      batch.set(doc(userBooksRef), {
+    oldSnap.docs.slice(i, i + 240).forEach((od) => {
+      const { id: _, ...rest } = od.data();
+      batch.set(doc(userRef), {
         ...rest,
         title: cleanTitle(rest.title, rest.url),
         imageUrl: rest.imageUrl || "",
         updatedAt: new Date(),
       });
-      batch.delete(oldDoc.ref);
+      batch.delete(od.ref);
     });
     await batch.commit();
   }
@@ -185,7 +243,7 @@ function App() {
     await migrateOldData(uid);
     const snap = await getDocs(collection(db, "users", uid, "books"));
     const list = snap.docs.map((d) => {
-      const { id: _ignore, ...data } = d.data();
+      const { id: _, ...data } = d.data();
       return { id: d.id, ...data };
     });
     list.sort((a, b) => {
@@ -201,26 +259,28 @@ function App() {
     else setBooks([]);
   }, [user, fetchBooks]);
 
-  const handleSignIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (e) {
-      console.error(e);
+  const handleSignIn = () => signInWithPopup(auth, googleProvider).catch(console.error);
+  const handleSignOut = () => { setAnchorEl(null); signOut(auth); };
+
+  const saveBook = async (book, imageFile = null) => {
+    let imageUrl = book.imageUrl || "";
+    if (imageFile) {
+      try {
+        const storageRef = ref(storage, `users/${user.uid}/covers/${Date.now()}_${imageFile.name}`);
+        await uploadBytes(storageRef, imageFile);
+        imageUrl = await getDownloadURL(storageRef);
+      } catch (err) {
+        console.error(err);
+        alert("Erro no upload da imagem. Verifique as regras do Firebase Storage.");
+        return;
+      }
     }
-  };
 
-  const handleSignOut = async () => {
-    setAnchorEl(null);
-    await signOut(auth);
-  };
-
-  const saveBook = async (book) => {
-    const userBooksRef = collection(db, "users", user.uid, "books");
     const payload = {
       title: book.title,
       chapter: book.chapter || "",
       url: book.url,
-      imageUrl: book.imageUrl || "",
+      imageUrl,
       updatedAt: serverTimestamp(),
     };
 
@@ -237,7 +297,7 @@ function App() {
           })
       );
     } else {
-      const docRef = await addDoc(userBooksRef, payload);
+      const docRef = await addDoc(collection(db, "users", user.uid, "books"), payload);
       setBooks((prev) => [{ id: docRef.id, ...payload, updatedAt: new Date() }, ...prev]);
     }
   };
@@ -247,166 +307,192 @@ function App() {
     setBooks((prev) => prev.filter((b) => b.id !== bookId));
   };
 
-  const filteredBooks = books.filter((b) =>
+  const filtered = books.filter((b) =>
     (b.title || "").toLowerCase().includes(query.toLowerCase())
   );
 
-  // Loading
+  const openEdit = (book, e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    setCurrentBook(book);
+    setOpenForm(true);
+  };
+
+  // ── Loading ──
   if (authLoading) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", backgroundColor: "#121212" }}>
-        <Typography sx={{ color: "#aaa" }}>Carregando…</Typography>
-      </Box>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+          <Typography sx={{ color: "text.secondary" }}>Carregando…</Typography>
+        </Box>
+      </ThemeProvider>
     );
   }
 
-  // Login
+  // ── Login ──
   if (!user) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-          backgroundColor: "#121212",
-          gap: 2,
-        }}
-      >
-        <Typography variant="h3" sx={{ color: "white", fontWeight: 700 }}>
-          📖 ChapterKeeper
-        </Typography>
-        <Typography sx={{ color: "#aaa", mb: 2 }}>
-          Sua biblioteca de mangás pessoal
-        </Typography>
-        <Button
-          variant="contained"
-          size="large"
-          onClick={handleSignIn}
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box
           sx={{
-            background: "linear-gradient(90deg, #6a11cb, #2575fc)",
-            px: 5,
-            py: 1.5,
-            fontSize: "1rem",
-            borderRadius: 2,
-            textTransform: "none",
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "radial-gradient(ellipse at 50% 40%, rgba(124,92,252,0.12) 0%, transparent 70%), #0d0d12",
+            gap: 2,
           }}
         >
-          Entrar com Google
-        </Button>
-      </Box>
+          <Typography variant="h5" sx={{ fontSize: "2.4rem", color: "#f0f0ff" }}>
+            ChapterKeeper
+          </Typography>
+          <Typography sx={{ color: "text.secondary", mb: 3 }}>
+            Sua biblioteca pessoal
+          </Typography>
+          <Button
+            variant="contained"
+            size="large"
+            onClick={handleSignIn}
+            sx={{
+              background: "linear-gradient(135deg, #7c5cfc, #5b8af5)",
+              px: 5,
+              py: 1.4,
+              fontSize: "0.95rem",
+              borderRadius: "10px",
+              boxShadow: "0 4px 24px rgba(124,92,252,0.35)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #8f72fd, #6e9af8)",
+                boxShadow: "0 6px 30px rgba(124,92,252,0.5)",
+              },
+            }}
+          >
+            Entrar com Google
+          </Button>
+        </Box>
+      </ThemeProvider>
     );
   }
 
-  // App
+  // ── App principal ──
   return (
-    <Box sx={{ backgroundColor: "#121212", minHeight: "100vh" }}>
-      <AppBar position="static" sx={{ background: "linear-gradient(90deg, #6a11cb, #2575fc)" }}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            📖 ChapterKeeper
-          </Typography>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ minHeight: "100vh", backgroundColor: "background.default" }}>
 
-          <Search>
-            <SearchIconWrapper>
-              <SearchIcon />
-            </SearchIconWrapper>
-            <StyledInputBase
-              placeholder="Procurar mangá…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </Search>
+        {/* Navbar */}
+        <AppBar
+          position="sticky"
+          elevation={0}
+          sx={{
+            background: "rgba(13,13,18,0.82)",
+            backdropFilter: "blur(22px)",
+            WebkitBackdropFilter: "blur(22px)",
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
+          }}
+        >
+          <Toolbar sx={{ gap: 1 }}>
+            <Typography variant="h6" sx={{ flexGrow: 1, fontSize: "1.1rem" }}>
+              ChapterKeeper
+            </Typography>
 
-          <Tooltip title={user.displayName || user.email}>
-            <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ ml: 2 }}>
-              <Avatar src={user.photoURL} alt={user.displayName} sx={{ width: 34, height: 34 }} />
-            </IconButton>
-          </Tooltip>
-          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-            <MenuItem disabled sx={{ fontSize: "0.8rem", color: "#aaa", opacity: "1 !important" }}>
-              {user.email}
-            </MenuItem>
-            <MenuItem onClick={handleSignOut}>
-              <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
-              Sair
-            </MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
+            {/* Contagem */}
+            <Typography variant="body2" sx={{ color: "text.secondary", display: { xs: "none", sm: "block" } }}>
+              {books.length} {books.length === 1 ? "livro" : "livros"}
+            </Typography>
 
-      <Container sx={{ mt: 3, pb: 4 }}>
-        <div className="catalog">
-          {filteredBooks.map((book) => (
-            <div
-              key={book.id}
-              className="catalog-card"
-              style={book.imageUrl ? {} : { backgroundColor: getCardColor(book.url) }}
-              onClick={() => window.open(book.url, "_blank")}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setCurrentBook(book);
-                setOpenForm(true);
-              }}
-            >
-              {book.imageUrl ? (
-                <>
+            {/* Busca */}
+            <SearchWrap>
+              <SearchIconBox>
+                <SearchIcon sx={{ fontSize: 18 }} />
+              </SearchIconBox>
+              <SearchInput
+                placeholder="Buscar…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </SearchWrap>
+
+            {/* Avatar */}
+            <Tooltip title={user.displayName || user.email}>
+              <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ ml: 0.5, p: 0.5 }}>
+                <Avatar src={user.photoURL} alt={user.displayName} sx={{ width: 32, height: 32 }} />
+              </IconButton>
+            </Tooltip>
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+              <MenuItem disabled sx={{ fontSize: "0.8rem", opacity: "1 !important", color: "text.secondary" }}>
+                {user.email}
+              </MenuItem>
+              <MenuItem onClick={handleSignOut}>
+                <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                Sair
+              </MenuItem>
+            </Menu>
+          </Toolbar>
+        </AppBar>
+
+        {/* Grade */}
+        <Container maxWidth="xl" sx={{ pt: 3 }}>
+          <div className="catalog">
+            {filtered.map((book) => (
+              <div
+                key={book.id}
+                className="catalog-card"
+                style={{ background: getGradient(book.id, book.title) }}
+                onClick={() => window.open(book.url, "_blank")}
+                onContextMenu={(e) => openEdit(book, e)}
+              >
+                {book.imageUrl && (
                   <img
                     src={book.imageUrl}
                     alt={book.title}
                     className="card-cover"
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                      e.target.nextSibling.style.background = getCardColor(book.url);
-                    }}
+                    onError={(e) => { e.target.style.display = "none"; }}
                   />
-                  <div className="card-info card-info--image">
-                    <span className="card-title">{book.title}</span>
-                    <span className="card-meta">
-                      {book.chapter ? `Cap. ${book.chapter}` : ""}
-                      {book.updatedAt && (
-                        <span className="card-date"> · {formatDate(book.updatedAt)}</span>
-                      )}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="card-info">
+                )}
+
+                <div className={`card-overlay${book.imageUrl ? "" : " card-overlay--full"}`}>
                   <span className="card-title">{book.title}</span>
-                  {book.chapter && (
-                    <span className="card-meta">Cap. {book.chapter}</span>
-                  )}
+                  <span className="card-meta">
+                    {book.chapter && `Cap. ${book.chapter}`}
+                  </span>
                   {book.updatedAt && (
                     <span className="card-date">{formatDate(book.updatedAt)}</span>
                   )}
                 </div>
-              )}
+
+                {/* Botão de editar (hover) */}
+                <div
+                  className="card-edit-btn"
+                  onClick={(e) => openEdit(book, e)}
+                  title="Editar"
+                >
+                  <EditIcon sx={{ fontSize: 14 }} />
+                </div>
+              </div>
+            ))}
+
+            {/* Card adicionar */}
+            <div
+              className="catalog-card catalog-card--add"
+              onClick={() => { setCurrentBook(null); setOpenForm(true); }}
+            >
+              <AddIcon sx={{ fontSize: 30, color: "rgba(124,92,252,0.7)" }} />
+              <span>Adicionar</span>
             </div>
-          ))}
-
-          {/* Card de adicionar */}
-          <div
-            className="catalog-card catalog-card--add"
-            onClick={() => {
-              setCurrentBook(null);
-              setOpenForm(true);
-            }}
-          >
-            <AddIcon sx={{ fontSize: 48, color: "#00bcd4" }} />
-            <span className="card-meta" style={{ marginTop: 6 }}>Adicionar</span>
           </div>
-        </div>
-      </Container>
+        </Container>
 
-      <BookForm
-        open={openForm}
-        handleClose={() => setOpenForm(false)}
-        saveBook={saveBook}
-        deleteBook={deleteBook}
-        currentBook={currentBook}
-      />
-    </Box>
+        <BookForm
+          open={openForm}
+          handleClose={() => setOpenForm(false)}
+          saveBook={saveBook}
+          deleteBook={deleteBook}
+          currentBook={currentBook}
+        />
+      </Box>
+    </ThemeProvider>
   );
 }
 
