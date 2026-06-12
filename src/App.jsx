@@ -40,11 +40,12 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   doc,
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 
 // ── MUI Theme: dark navy/purple ──
@@ -192,47 +193,6 @@ function normalize(s = "") {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-function extractNameFromUrl(url) {
-  if (!url) return null;
-  try {
-    const raw = url.startsWith("http") ? url : "https://" + url;
-    const { pathname } = new URL(raw);
-    const patterns = [
-      /\/leitor\/([^/]+)\/\d+/,
-      /\/manga\/([^/]+)\/cap-/,
-      /\/comics?\/([^/]+)\/cap-/,
-      /\/serie\/([^/]+)\/cap-/,
-      /\/comicz\/([^/]+)\/cap-/,
-      /\/ler\/([^/]+)\/(?:online|cap-)/,
-      /\/capitulos\/(.+?)-capitulo-/,
-    ];
-    for (const re of patterns) {
-      const m = pathname.match(re);
-      if (m) {
-        const name = m[1]
-          .replace(/[_-]/g, " ")
-          .replace(/\d+_\d+[\w_]*/g, "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .replace(/\b\w/g, (c) => c.toUpperCase());
-        if (name.length > 3) return name;
-      }
-    }
-  } catch {
-    // URL inválida — sem nome extraível
-  }
-  return null;
-}
-
-function cleanTitle(title, url) {
-  if (!title) return extractNameFromUrl(url) || url || "Sem título";
-  const looksLikeUrl =
-    title.startsWith("http") ||
-    /^[a-z0-9-]+\.(net|com|org|top|xyz|online|br|cc)/.test(title) ||
-    /\.(net|com|org|top)\//.test(title);
-  return looksLikeUrl ? extractNameFromUrl(url) || title : title;
-}
-
 function formatDate(ts) {
   if (!ts) return "";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -268,29 +228,6 @@ const chipSx = (active) => ({
       }),
 });
 
-// ── Migração ──
-async function migrateOldData(uid) {
-  const oldSnap = await getDocs(collection(db, "books"));
-  if (oldSnap.empty) return;
-  const userRef = collection(db, "users", uid, "books");
-  const userSnap = await getDocs(userRef);
-  if (!userSnap.empty) return;
-  for (let i = 0; i < oldSnap.docs.length; i += 240) {
-    const batch = writeBatch(db);
-    oldSnap.docs.slice(i, i + 240).forEach((od) => {
-      const { id: _, ...rest } = od.data();
-      batch.set(doc(userRef), {
-        ...rest,
-        title: cleanTitle(rest.title, rest.url),
-        imageUrl: rest.imageUrl || "",
-        updatedAt: new Date(),
-      });
-      batch.delete(od.ref);
-    });
-    await batch.commit();
-  }
-}
-
 // ── App ──
 function App() {
   const [user, setUser] = useState(null);
@@ -302,6 +239,7 @@ function App() {
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [editingGroup, setEditingGroup] = useState(null); // { id, name }
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const [query, setQuery] = useState("");
   const [openForm, setOpenForm] = useState(false);
   const [currentBook, setCurrentBook] = useState(null);
@@ -333,7 +271,6 @@ function App() {
   const fetchBooks = useCallback(async (uid) => {
     setBooksLoading(true);
     try {
-      await migrateOldData(uid);
       const snap = await getDocs(collection(db, "users", uid, "books"));
       const list = snap.docs.map((d) => {
         const { id: _, ...data } = d.data();
@@ -350,6 +287,8 @@ function App() {
         return tb - ta;
       });
       setBooks(list);
+    } catch (err) {
+      console.error("Erro ao carregar livros:", err);
     } finally {
       setBooksLoading(false);
     }
@@ -365,46 +304,73 @@ function App() {
 
   const createGroup = async () => {
     const name = newGroupName.trim();
-    if (!name) return;
-    const docRef = await addDoc(collection(db, "users", user.uid, "groups"), {
-      name,
-      order: groups.length,
-      createdAt: serverTimestamp(),
-    });
-    setGroups((prev) => [...prev, { id: docRef.id, name, order: prev.length, createdAt: new Date() }]);
-    setNewGroupName("");
-    setNewGroupOpen(false);
+    // creatingGroup evita criação dupla por Enter/clique repetido durante o await
+    if (!name || creatingGroup) return;
+    if (groups.some((g) => normalize(g.name) === normalize(name))) {
+      alert("Já existe uma etiqueta com esse nome.");
+      return;
+    }
+    setCreatingGroup(true);
+    try {
+      const docRef = await addDoc(collection(db, "users", user.uid, "groups"), {
+        name,
+        order: groups.length,
+        createdAt: serverTimestamp(),
+      });
+      setGroups((prev) => [...prev, { id: docRef.id, name, order: prev.length, createdAt: new Date() }]);
+      setNewGroupName("");
+      setNewGroupOpen(false);
+    } catch (err) {
+      console.error("Erro ao criar etiqueta:", err);
+      alert("Erro ao criar etiqueta. Tente novamente.");
+    } finally {
+      setCreatingGroup(false);
+    }
   };
 
   const renameGroup = async () => {
     const name = editingGroup?.name.trim();
     if (!name) return;
-    await updateDoc(doc(db, "users", user.uid, "groups", editingGroup.id), { name });
-    setGroups((prev) => prev.map((g) => (g.id === editingGroup.id ? { ...g, name } : g)));
-    setEditingGroup(null);
+    if (groups.some((g) => g.id !== editingGroup.id && normalize(g.name) === normalize(name))) {
+      alert("Já existe uma etiqueta com esse nome.");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "users", user.uid, "groups", editingGroup.id), { name });
+      setGroups((prev) => prev.map((g) => (g.id === editingGroup.id ? { ...g, name } : g)));
+      setEditingGroup(null);
+    } catch (err) {
+      console.error("Erro ao renomear etiqueta:", err);
+      alert("Erro ao renomear etiqueta. Tente novamente.");
+    }
   };
 
   const deleteGroup = async (groupId) => {
-    await deleteDoc(doc(db, "users", user.uid, "groups", groupId));
-    const toUpdate = books.filter((b) => b.groupIds?.includes(groupId));
-    if (toUpdate.length > 0) {
-      const batch = writeBatch(db);
-      toUpdate.forEach((b) =>
-        batch.update(doc(db, "users", user.uid, "books", b.id), {
-          groupIds: b.groupIds.filter((id) => id !== groupId),
-        })
-      );
-      await batch.commit();
-      setBooks((prev) =>
-        prev.map((b) =>
-          b.groupIds?.includes(groupId)
-            ? { ...b, groupIds: b.groupIds.filter((id) => id !== groupId) }
-            : b
-        )
-      );
+    try {
+      await deleteDoc(doc(db, "users", user.uid, "groups", groupId));
+      const toUpdate = books.filter((b) => b.groupIds?.includes(groupId));
+      if (toUpdate.length > 0) {
+        const batch = writeBatch(db);
+        toUpdate.forEach((b) =>
+          batch.update(doc(db, "users", user.uid, "books", b.id), {
+            groupIds: b.groupIds.filter((id) => id !== groupId),
+          })
+        );
+        await batch.commit();
+        setBooks((prev) =>
+          prev.map((b) =>
+            b.groupIds?.includes(groupId)
+              ? { ...b, groupIds: b.groupIds.filter((id) => id !== groupId) }
+              : b
+          )
+        );
+      }
+      setGroups((prev) => prev.filter((g) => g.id !== groupId));
+      setActiveGroups((prev) => prev.filter((id) => id !== groupId));
+    } catch (err) {
+      console.error("Erro ao excluir etiqueta:", err);
+      alert("Erro ao excluir etiqueta. Tente novamente.");
     }
-    setGroups((prev) => prev.filter((g) => g.id !== groupId));
-    setActiveGroups((prev) => prev.filter((id) => id !== groupId));
   };
 
   const toggleGroupFilter = (groupId) =>
@@ -427,9 +393,13 @@ function App() {
     setGroups(list.map((g, i) => ({ ...g, order: i })));
     setDraggedGroup(null);
     setDragOverGroup(null);
-    const batch = writeBatch(db);
-    list.forEach((g, i) => batch.update(doc(db, "users", user.uid, "groups", g.id), { order: i }));
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      list.forEach((g, i) => batch.update(doc(db, "users", user.uid, "groups", g.id), { order: i }));
+      await batch.commit();
+    } catch (err) {
+      console.error("Erro ao salvar a ordem das etiquetas:", err);
+    }
   };
 
   const saveBook = async (book, imageFile = null) => {
@@ -442,7 +412,7 @@ function App() {
       } catch (err) {
         console.error(err);
         alert("Erro no upload. Verifique as regras do Firebase Storage.");
-        return;
+        return false;
       }
     }
     const payload = {
@@ -454,7 +424,11 @@ function App() {
       updatedAt: serverTimestamp(),
     };
     if (book.id) {
-      await updateDoc(doc(db, "users", user.uid, "books", book.id), payload);
+      // groupId: campo legado do modelo antigo — removido na primeira edição
+      await updateDoc(doc(db, "users", user.uid, "books", book.id), {
+        ...payload,
+        groupId: deleteField(),
+      });
       const now = new Date();
       setBooks((prev) =>
         prev
@@ -469,11 +443,21 @@ function App() {
       const docRef = await addDoc(collection(db, "users", user.uid, "books"), payload);
       setBooks((prev) => [{ id: docRef.id, ...payload, updatedAt: new Date() }, ...prev]);
     }
+    return true;
   };
 
   const deleteBook = async (bookId) => {
+    const book = books.find((b) => b.id === bookId);
     await deleteDoc(doc(db, "users", user.uid, "books", bookId));
     setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    // remove a capa enviada ao Storage para não deixar arquivo órfão
+    if (book?.imageUrl?.includes("firebasestorage")) {
+      try {
+        await deleteObject(ref(storage, book.imageUrl));
+      } catch {
+        // capa já removida ou URL externa — nada a fazer
+      }
+    }
   };
 
   const filtered = books.filter((b) => normalize(b.title).includes(normalize(query)));
@@ -859,7 +843,9 @@ function App() {
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2.5 }}>
             <Button onClick={() => { setNewGroupOpen(false); setNewGroupName(""); }}>Cancelar</Button>
-            <Button variant="contained" onClick={createGroup} disabled={!newGroupName.trim()}>Criar</Button>
+            <Button variant="contained" onClick={createGroup} disabled={!newGroupName.trim() || creatingGroup}>
+              {creatingGroup ? "Criando…" : "Criar"}
+            </Button>
           </DialogActions>
         </Dialog>
 
