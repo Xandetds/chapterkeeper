@@ -143,13 +143,40 @@ const SearchInput = styled("input")({
   border: "none",
   outline: "none",
   padding: "8px 12px 8px 38px",
-  width: "22ch",
+  width: "20ch",
   fontSize: "0.84rem",
   fontFamily: '"DM Sans", sans-serif',
+  transition: "width 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+  "&:focus": { width: "28ch" },
   "&::placeholder": { color: "rgba(220, 215, 245, 0.22)" },
+  "@media (max-width: 600px)": {
+    width: "12ch",
+    "&:focus": { width: "16ch" },
+  },
 });
 
+// ── Marca: lua crescente (mesma do favicon) ──
+function Moon({ size = 18, style }) {
+  return (
+    <svg viewBox="6 6 20 20" width={size} height={size} style={style} aria-hidden="true">
+      <path d="M21 8.5a9 9 0 1 0 0 15 7 7 0 1 1 0-15z" fill="currentColor" />
+    </svg>
+  );
+}
+
 // ── Utilitários ──
+// Matiz estável por título (faixa azul→roxo) para os placeholders de capa
+function titleHue(title = "") {
+  let h = 0;
+  for (const c of title) h = (h * 31 + c.charCodeAt(0)) % 997;
+  return 222 + (h % 76);
+}
+
+// Busca sem diferenciar acentos/maiúsculas
+function normalize(s = "") {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function extractNameFromUrl(url) {
   if (!url) return null;
   try {
@@ -176,7 +203,9 @@ function extractNameFromUrl(url) {
         if (name.length > 3) return name;
       }
     }
-  } catch (_) {}
+  } catch {
+    // URL inválida — sem nome extraível
+  }
   return null;
 }
 
@@ -252,6 +281,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [books, setBooks] = useState([]);
+  const [booksLoading, setBooksLoading] = useState(true);
   const [groups, setGroups] = useState([]);
   const [activeGroup, setActiveGroup] = useState(null);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
@@ -278,18 +308,23 @@ function App() {
   }, []);
 
   const fetchBooks = useCallback(async (uid) => {
-    await migrateOldData(uid);
-    const snap = await getDocs(collection(db, "users", uid, "books"));
-    const list = snap.docs.map((d) => {
-      const { id: _, ...data } = d.data();
-      return { id: d.id, ...data };
-    });
-    list.sort((a, b) => {
-      const ta = a.updatedAt?.toDate?.() ?? new Date(a.updatedAt ?? 0);
-      const tb = b.updatedAt?.toDate?.() ?? new Date(b.updatedAt ?? 0);
-      return tb - ta;
-    });
-    setBooks(list);
+    setBooksLoading(true);
+    try {
+      await migrateOldData(uid);
+      const snap = await getDocs(collection(db, "users", uid, "books"));
+      const list = snap.docs.map((d) => {
+        const { id: _, ...data } = d.data();
+        return { id: d.id, ...data };
+      });
+      list.sort((a, b) => {
+        const ta = a.updatedAt?.toDate?.() ?? new Date(a.updatedAt ?? 0);
+        const tb = b.updatedAt?.toDate?.() ?? new Date(b.updatedAt ?? 0);
+        return tb - ta;
+      });
+      setBooks(list);
+    } finally {
+      setBooksLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -369,9 +404,7 @@ function App() {
     setBooks((prev) => prev.filter((b) => b.id !== bookId));
   };
 
-  const filtered = books.filter((b) =>
-    (b.title || "").toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = books.filter((b) => normalize(b.title).includes(normalize(query)));
   const displayedBooks = activeGroup
     ? filtered.filter((b) => b.groupId === activeGroup)
     : filtered;
@@ -409,20 +442,24 @@ function App() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            background: "#0d0c1a",
-            gap: 0,
+            background:
+              "radial-gradient(55% 42% at 50% 32%, rgba(140, 120, 255, 0.09), transparent 70%), #0d0c1a",
           }}
         >
-          {/* Divisor decorativo topo */}
-          <Box sx={{
-            width: 1,
-            height: 1,
-            background: "rgba(140, 120, 255, 0.35)",
-            mb: 5,
-            animation: "fadeIn 0.8s ease both",
-          }} />
+          <Box sx={{ textAlign: "center" }}>
+            {/* Lua */}
+            <Box
+              sx={{
+                color: "#8c78ff",
+                mb: 3,
+                animation: "moonRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
+                filter: "drop-shadow(0 0 26px rgba(140, 120, 255, 0.45))",
+                lineHeight: 0,
+              }}
+            >
+              <Moon size={46} />
+            </Box>
 
-          <Box sx={{ textAlign: "center", animation: "fadeIn 0.7s 0.1s ease both" }}>
             <Typography
               sx={{
                 fontFamily: '"Fraunces", serif',
@@ -432,22 +469,38 @@ function App() {
                 color: "#dcd7f5",
                 letterSpacing: "-0.03em",
                 lineHeight: 1,
-                mb: 1.2,
+                mb: 1.6,
+                animation: "fadeIn 0.7s 0.15s ease both",
               }}
             >
               ChapterKeeper
             </Typography>
+
+            {/* Hairline */}
+            <Box
+              sx={{
+                width: 64,
+                height: "1px",
+                mx: "auto",
+                mb: 1.6,
+                background:
+                  "linear-gradient(90deg, transparent, rgba(140, 120, 255, 0.55), transparent)",
+                animation: "lineGrow 0.8s 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
+              }}
+            />
+
             <Typography
               sx={{
                 fontFamily: '"DM Mono", monospace',
                 fontSize: "0.72rem",
                 color: "#5a5878",
-                letterSpacing: "0.18em",
+                letterSpacing: "0.22em",
                 textTransform: "uppercase",
                 mb: 5,
+                animation: "fadeIn 0.7s 0.3s ease both",
               }}
             >
-              biblioteca pessoal
+              sua estante de capítulos
             </Typography>
 
             <Button
@@ -459,20 +512,14 @@ function App() {
                 fontSize: "0.85rem",
                 letterSpacing: "0.04em",
                 borderRadius: "6px",
+                animation: "fadeIn 0.7s 0.45s ease both",
+                boxShadow: "0 6px 28px rgba(140, 120, 255, 0.22)",
+                "&:hover": { boxShadow: "0 8px 34px rgba(140, 120, 255, 0.34)" },
               }}
             >
               Entrar com Google
             </Button>
           </Box>
-
-          {/* Divisor decorativo fundo */}
-          <Box sx={{
-            width: 1,
-            height: 1,
-            background: "rgba(140, 120, 255, 0.35)",
-            mt: 5,
-            animation: "fadeIn 0.8s ease both",
-          }} />
         </Box>
       </ThemeProvider>
     );
@@ -498,20 +545,24 @@ function App() {
           <Toolbar sx={{ minHeight: "50px !important", gap: 2 }}>
 
             {/* Logo */}
-            <Typography
-              sx={{
-                fontFamily: '"Fraunces", serif',
-                fontStyle: "italic",
-                fontSize: "1.2rem",
-                fontWeight: 300,
-                color: "#dcd7f5",
-                letterSpacing: "-0.02em",
-                flexGrow: 1,
-                lineHeight: 1,
-              }}
-            >
-              ChapterKeeper
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexGrow: 1 }}>
+              <Box sx={{ color: "#8c78ff", lineHeight: 0, filter: "drop-shadow(0 0 8px rgba(140,120,255,0.4))" }}>
+                <Moon size={17} />
+              </Box>
+              <Typography
+                sx={{
+                  fontFamily: '"Fraunces", serif',
+                  fontStyle: "italic",
+                  fontSize: "1.2rem",
+                  fontWeight: 300,
+                  color: "#dcd7f5",
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1,
+                }}
+              >
+                ChapterKeeper
+              </Typography>
+            </Box>
 
             {/* Contagem */}
             <Typography
@@ -641,55 +692,96 @@ function App() {
 
         {/* Grade */}
         <Container maxWidth="xl" sx={{ pt: 3 }}>
-          <div className="catalog">
-            {displayedBooks.map((book, index) => (
-              <div
-                key={book.id}
-                className="book-item"
-                style={{ animationDelay: `${Math.min(index * 0.04, 0.6)}s` }}
-                onClick={() => window.open(book.url, "_blank")}
+          {booksLoading ? (
+            <div className="catalog">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="skeleton-item" style={{ animationDelay: `${i * 0.04}s` }}>
+                  <div className="skeleton-cover" />
+                  <div className="skeleton-line" />
+                  <div className="skeleton-line skeleton-line--short" />
+                </div>
+              ))}
+            </div>
+          ) : books.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-moon"><Moon size={40} /></span>
+              <p className="empty-title">Sua estante está vazia</p>
+              <p className="empty-sub">guarde o capítulo onde você parou</p>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => { setCurrentBook(null); setOpenForm(true); }}
               >
-                <div className="book-cover-wrap">
-                  {book.imageUrl ? (
-                    <img
-                      src={book.imageUrl}
-                      alt={book.title}
-                      className="book-cover"
-                      onError={(e) => { e.target.style.display = "none"; }}
-                    />
-                  ) : (
-                    <div className="book-cover-placeholder">
-                      <span className="placeholder-title">{book.title}</span>
-                      {book.chapter && (
-                        <span className="placeholder-chapter">cap. {book.chapter}</span>
-                      )}
+                Adicionar primeiro livro
+              </Button>
+            </div>
+          ) : displayedBooks.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-moon"><Moon size={32} /></span>
+              <p className="empty-title">Nada por aqui</p>
+              <p className="empty-sub">
+                {query ? `nenhum resultado para “${query}”` : "este grupo ainda não tem livros"}
+              </p>
+            </div>
+          ) : (
+            <div className="catalog">
+              {displayedBooks.map((book, index) => (
+                <div
+                  key={book.id}
+                  className="book-item"
+                  style={{ animationDelay: `${Math.min(index * 0.04, 0.6)}s` }}
+                  onClick={() => window.open(book.url, "_blank", "noopener,noreferrer")}
+                >
+                  <div className="book-cover-wrap">
+                    {book.imageUrl ? (
+                      <img
+                        src={book.imageUrl}
+                        alt={book.title}
+                        className="book-cover"
+                        loading="lazy"
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    ) : (
+                      <div
+                        className="book-cover-placeholder"
+                        style={{ "--ph": titleHue(book.title) }}
+                      >
+                        <span className="placeholder-initial">
+                          {(book.title || "?").trim().charAt(0).toUpperCase()}
+                        </span>
+                        <span className="placeholder-title">{book.title}</span>
+                        {book.chapter && (
+                          <span className="placeholder-chapter">cap. {book.chapter}</span>
+                        )}
+                      </div>
+                    )}
+                    <div className="book-hover-overlay">continuar →</div>
+                    <div className="book-edit-btn" onClick={(e) => openEdit(book, e)} title="Editar">
+                      <EditIcon sx={{ fontSize: 11 }} />
                     </div>
-                  )}
-                  <div className="book-edit-btn" onClick={(e) => openEdit(book, e)} title="Editar">
-                    <EditIcon sx={{ fontSize: 11 }} />
+                  </div>
+                  <div className="book-info">
+                    <p className="book-title">{book.title}</p>
+                    {book.chapter && <p className="book-chapter">cap. {book.chapter}</p>}
+                    {book.updatedAt && <p className="book-date">{formatDate(book.updatedAt)}</p>}
                   </div>
                 </div>
-                <div className="book-info">
-                  <p className="book-title">{book.title}</p>
-                  {book.chapter && <p className="book-chapter">cap. {book.chapter}</p>}
-                  {book.updatedAt && <p className="book-date">{formatDate(book.updatedAt)}</p>}
-                </div>
-              </div>
-            ))}
+              ))}
 
-            {/* Card adicionar */}
-            <div
-              className="book-item book-item--add"
-              onClick={() => { setCurrentBook(null); setOpenForm(true); }}
-            >
-              <div className="book-cover-wrap">
-                <div className="add-content">
-                  <AddIcon sx={{ fontSize: 22, color: "rgba(140,120,255,0.3)" }} />
-                  <span className="add-label">adicionar</span>
+              {/* Card adicionar */}
+              <div
+                className="book-item book-item--add"
+                onClick={() => { setCurrentBook(null); setOpenForm(true); }}
+              >
+                <div className="book-cover-wrap">
+                  <div className="add-content">
+                    <AddIcon sx={{ fontSize: 22, color: "rgba(140,120,255,0.3)" }} />
+                    <span className="add-label">adicionar</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </Container>
 
         <BookForm

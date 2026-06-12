@@ -27,17 +27,39 @@
     0 2px 8px rgba(0, 0, 0, 0.55),
     0 1px 2px rgba(0, 0, 0, 0.4);
   transition:
-    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.2s ease;
 }
 
 .book-item:hover .book-cover-wrap {
-  transform: translateY(-6px);
+  transform: translateY(-6px) rotate(-0.4deg);
   border-color: rgba(140, 120, 255, 0.38);
   box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.7),
+    0 18px 44px rgba(0, 0, 0, 0.72),
+    0 4px 14px rgba(140, 120, 255, 0.1),
     0 0 0 1px rgba(140, 120, 255, 0.14);
+}
+
+/* Brilho que varre a capa no hover */
+.book-cover-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(220, 215, 245, 0.085) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+}
+
+.book-item:hover .book-cover-wrap::before {
+  transform: translateX(130%);
+  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ── Cover image ── */
@@ -48,6 +70,35 @@
   height: 100%;
   object-fit: cover;
   object-position: top center;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.book-item:hover .book-cover {
+  transform: scale(1.05);
+}
+
+/* ── Overlay "continuar" no hover ── */
+.book-hover-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 30px 10px 9px;
+  background: linear-gradient(to top, rgba(8, 8, 16, 0.88), transparent);
+  font-family: "DM Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: #c4baff;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.book-item:hover .book-hover-overlay {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ── Placeholder (no image) ── */
@@ -60,14 +111,33 @@
   justify-content: center;
   padding: 14px 12px;
   text-align: center;
-  background: linear-gradient(145deg, #1a1830 0%, #111222 100%);
+  background:
+    radial-gradient(130% 90% at 18% -5%, hsl(var(--ph, 255) 48% 22% / 0.85), transparent 62%),
+    linear-gradient(160deg, hsl(var(--ph, 255) 36% 13%) 0%, #0f0e1e 75%);
+}
+
+/* Inicial gigante atrás do título */
+.book-cover-placeholder .placeholder-initial {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -54%);
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 5.2rem;
+  line-height: 1;
+  color: hsl(var(--ph, 255) 75% 78% / 0.1);
+  user-select: none;
+  pointer-events: none;
 }
 
 .book-cover-placeholder .placeholder-title {
+  position: relative;
   font-family: "DM Sans", sans-serif;
   font-size: 0.76rem;
   font-weight: 500;
-  color: rgba(220, 215, 245, 0.65);
+  color: rgba(220, 215, 245, 0.72);
   line-height: 1.42;
   display: -webkit-box;
   -webkit-line-clamp: 6;
@@ -77,9 +147,10 @@
 
 /* ── Chapter badge on placeholder ── */
 .book-cover-placeholder .placeholder-chapter {
+  position: relative;
   font-family: "DM Mono", monospace;
   font-size: 0.6rem;
-  color: rgba(140, 120, 255, 0.6);
+  color: hsl(var(--ph, 255) 70% 75% / 0.65);
   letter-spacing: 0.04em;
   margin-top: 8px;
 }
@@ -132,6 +203,11 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin: 0 0 4px 0;
+  transition: color 0.15s ease;
+}
+
+.book-item:hover .book-title {
+  color: #c4baff;
 }
 
 .book-chapter {
@@ -160,6 +236,10 @@
   justify-content: center;
 }
 
+.book-item--add .book-cover-wrap::before {
+  display: none;
+}
+
 .book-item--add:hover .book-cover-wrap {
   transform: translateY(-4px);
   border-color: rgba(140, 120, 255, 0.32) !important;
@@ -173,6 +253,11 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.book-item--add:hover .add-content {
+  transform: scale(1.06);
 }
 
 .add-label {
@@ -182,4 +267,80 @@
   color: rgba(220, 215, 245, 0.2);
   letter-spacing: 0.07em;
   text-transform: uppercase;
+}
+
+/* ── Skeleton (carregando) ── */
+.skeleton-item {
+  animation: fadeUp 0.4s ease both;
+}
+
+.skeleton-cover {
+  aspect-ratio: 2 / 3;
+  border-radius: 7px;
+  border: 1px solid rgba(140, 120, 255, 0.06);
+  background: linear-gradient(
+    100deg,
+    rgba(20, 19, 34, 0.9) 40%,
+    rgba(30, 28, 56, 0.9) 50%,
+    rgba(20, 19, 34, 0.9) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.skeleton-line {
+  height: 9px;
+  border-radius: 4px;
+  margin-top: 9px;
+  width: 80%;
+  background: linear-gradient(
+    100deg,
+    rgba(20, 19, 34, 0.9) 40%,
+    rgba(30, 28, 56, 0.9) 50%,
+    rgba(20, 19, 34, 0.9) 60%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.skeleton-line--short {
+  width: 45%;
+  margin-top: 6px;
+}
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 90px 20px 70px;
+  text-align: center;
+  animation: fadeIn 0.5s ease both;
+}
+
+.empty-state .empty-moon {
+  color: rgba(140, 120, 255, 0.3);
+  margin-bottom: 14px;
+  animation: floaty 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 22px rgba(140, 120, 255, 0.25));
+}
+
+.empty-state .empty-title {
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 1.45rem;
+  color: rgba(220, 215, 245, 0.85);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.empty-state .empty-sub {
+  font-family: "DM Mono", monospace;
+  font-size: 0.7rem;
+  color: #5a5878;
+  letter-spacing: 0.1em;
+  margin: 0 0 18px;
 }

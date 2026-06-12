@@ -44,7 +44,7 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook, groups
         groupId: currentBook.groupId || "",
       });
       setImagePreview(currentBook.imageUrl || "");
-      setImageMode(currentBook.imageUrl ? "url" : "url");
+      setImageMode("url");
     } else {
       setForm(emptyForm);
       setImagePreview("");

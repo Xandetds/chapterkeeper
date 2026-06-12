@@ -11,11 +11,39 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Ambient glow — duas luzes roxas bem suaves nos cantos */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 38% at 12% -5%, rgba(140, 120, 255, 0.075), transparent 65%),
+    radial-gradient(45% 32% at 92% 105%, rgba(140, 120, 255, 0.05), transparent 65%);
+}
+
+/* Grain cinematográfico por cima de tudo */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 h1, h2, h3 {
   margin: 0;
 }
 
-/* Warm scrollbar */
+::selection {
+  background: rgba(140, 120, 255, 0.35);
+  color: #f0edff;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: #0d0c1a; }
 ::-webkit-scrollbar-thumb { background: #1e1c38; border-radius: 3px; }
@@ -37,4 +65,41 @@ h1, h2, h3 {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Lua subindo na tela de login */
+@keyframes moonRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+/* Hairline que se expande */
+@keyframes lineGrow {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Flutuação suave (empty state) */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
