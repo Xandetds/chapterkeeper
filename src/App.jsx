@@ -298,7 +298,7 @@ function App() {
   const [books, setBooks] = useState([]);
   const [booksLoading, setBooksLoading] = useState(true);
   const [groups, setGroups] = useState([]);
-  const [activeGroup, setActiveGroup] = useState(null);
+  const [activeGroups, setActiveGroups] = useState([]);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [query, setQuery] = useState("");
@@ -356,7 +356,7 @@ function App() {
 
   useEffect(() => {
     if (user) { fetchBooks(user.uid); fetchGroups(user.uid); }
-    else { setBooks([]); setGroups([]); setActiveGroup(null); }
+    else { setBooks([]); setGroups([]); setActiveGroups([]); }
   }, [user, fetchBooks, fetchGroups]);
 
   const handleSignIn = () => signInWithPopup(auth, googleProvider).catch(console.error);
@@ -395,8 +395,13 @@ function App() {
       );
     }
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
-    if (activeGroup === groupId) setActiveGroup(null);
+    setActiveGroups((prev) => prev.filter((id) => id !== groupId));
   };
+
+  const toggleGroupFilter = (groupId) =>
+    setActiveGroups((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
 
   const reorderGroups = async (targetId) => {
     if (!draggedGroup || draggedGroup === targetId) {
@@ -463,8 +468,8 @@ function App() {
   };
 
   const filtered = books.filter((b) => normalize(b.title).includes(normalize(query)));
-  const displayedBooks = activeGroup
-    ? filtered.filter((b) => b.groupIds?.includes(activeGroup))
+  const displayedBooks = activeGroups.length
+    ? filtered.filter((b) => activeGroups.some((id) => b.groupIds?.includes(id)))
     : filtered;
 
   const openEdit = (book, e) => {
@@ -647,30 +652,45 @@ function App() {
               />
             </SearchWrap>
 
-            {/* Chip do grupo ativo */}
-            {activeGroup && (
-              <Chip
-                size="small"
-                variant="outlined"
-                label={groups.find((g) => g.id === activeGroup)?.name}
-                onDelete={() => setActiveGroup(null)}
-                sx={{ ...chipSx(true), display: { xs: "none", sm: "inline-flex" } }}
-              />
+            {/* Chips das etiquetas ativas */}
+            {activeGroups.length > 0 && (
+              <Box
+                sx={{
+                  display: { xs: "none", sm: "flex" },
+                  alignItems: "center",
+                  gap: 0.5,
+                  maxWidth: "32vw",
+                  overflowX: "auto",
+                  scrollbarWidth: "none",
+                  "&::-webkit-scrollbar": { display: "none" },
+                }}
+              >
+                {activeGroups.map((id) => (
+                  <Chip
+                    key={id}
+                    size="small"
+                    variant="outlined"
+                    label={groups.find((g) => g.id === id)?.name}
+                    onDelete={() => toggleGroupFilter(id)}
+                    sx={{ ...chipSx(true), flexShrink: 0 }}
+                  />
+                ))}
+              </Box>
             )}
 
-            {/* Filtro por grupo */}
+            {/* Filtro por etiqueta */}
             <Tooltip title="Filtrar por etiqueta">
               <IconButton
                 size="small"
                 onClick={(e) => setFilterAnchor(e.currentTarget)}
                 sx={{
-                  color: activeGroup ? "#8c78ff" : "rgba(220, 215, 245, 0.4)",
+                  color: activeGroups.length ? "#8c78ff" : "rgba(220, 215, 245, 0.4)",
                   border: "1px solid",
-                  borderColor: activeGroup ? "rgba(140,120,255,0.45)" : "rgba(140,120,255,0.12)",
+                  borderColor: activeGroups.length ? "rgba(140,120,255,0.45)" : "rgba(140,120,255,0.12)",
                   borderRadius: "7px",
                   width: 34,
                   height: 34,
-                  background: activeGroup ? "rgba(140,120,255,0.12)" : "rgba(140,120,255,0.05)",
+                  background: activeGroups.length ? "rgba(140,120,255,0.12)" : "rgba(140,120,255,0.05)",
                   transition: "all 0.15s ease",
                   "&:hover": {
                     color: "#a090ff",
@@ -679,7 +699,7 @@ function App() {
                   },
                 }}
               >
-                {activeGroup ? <FilterAltIcon sx={{ fontSize: 17 }} /> : <FilterAltOutlinedIcon sx={{ fontSize: 17 }} />}
+                {activeGroups.length ? <FilterAltIcon sx={{ fontSize: 17 }} /> : <FilterAltOutlinedIcon sx={{ fontSize: 17 }} />}
               </IconButton>
             </Tooltip>
 
@@ -693,8 +713,8 @@ function App() {
               slotProps={{ paper: { sx: { minWidth: 190, mt: 0.5 } } }}
             >
               <MenuItem
-                selected={activeGroup === null}
-                onClick={() => { setActiveGroup(null); setFilterAnchor(null); }}
+                selected={activeGroups.length === 0}
+                onClick={() => { setActiveGroups([]); setFilterAnchor(null); }}
                 sx={{ fontSize: "0.84rem", display: "flex", justifyContent: "space-between", gap: 2 }}
               >
                 Todos
@@ -705,8 +725,8 @@ function App() {
               {groups.map((g) => (
                 <MenuItem
                   key={g.id}
-                  selected={activeGroup === g.id}
-                  onClick={() => { setActiveGroup(g.id); setFilterAnchor(null); }}
+                  selected={activeGroups.includes(g.id)}
+                  onClick={() => toggleGroupFilter(g.id)}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
@@ -846,7 +866,11 @@ function App() {
               <span className="empty-moon"><Moon size={32} /></span>
               <p className="empty-title">Nada por aqui</p>
               <p className="empty-sub">
-                {query ? `nenhum resultado para “${query}”` : "esta etiqueta ainda não tem livros"}
+                {query
+                  ? `nenhum resultado para “${query}”`
+                  : activeGroups.length > 1
+                    ? "nenhum livro com essas etiquetas"
+                    : "esta etiqueta ainda não tem livros"}
               </p>
             </div>
           ) : (
