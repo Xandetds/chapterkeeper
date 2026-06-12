@@ -29,6 +29,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
 import CloseIcon from "@mui/icons-material/Close";
+import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import { styled } from "@mui/material/styles";
 import BookForm from "./components/BookForm";
 import "./catalog.css";
@@ -305,6 +306,8 @@ function App() {
   const [currentBook, setCurrentBook] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const [filterAnchor, setFilterAnchor] = useState(null);
+  const [draggedGroup, setDraggedGroup] = useState(null);
+  const [dragOverGroup, setDragOverGroup] = useState(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setAuthLoading(false); });
@@ -315,6 +318,10 @@ function App() {
     const snap = await getDocs(collection(db, "users", uid, "groups"));
     const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     list.sort((a, b) => {
+      // etiquetas sem order (antigas) vão para o fim, ordenadas por criação
+      const oa = a.order ?? Number.MAX_SAFE_INTEGER;
+      const ob = b.order ?? Number.MAX_SAFE_INTEGER;
+      if (oa !== ob) return oa - ob;
       const ta = a.createdAt?.toDate?.() ?? new Date(a.createdAt ?? 0);
       const tb = b.createdAt?.toDate?.() ?? new Date(b.createdAt ?? 0);
       return ta - tb;
@@ -360,9 +367,10 @@ function App() {
     if (!name) return;
     const docRef = await addDoc(collection(db, "users", user.uid, "groups"), {
       name,
+      order: groups.length,
       createdAt: serverTimestamp(),
     });
-    setGroups((prev) => [...prev, { id: docRef.id, name, createdAt: new Date() }]);
+    setGroups((prev) => [...prev, { id: docRef.id, name, order: prev.length, createdAt: new Date() }]);
     setNewGroupName("");
     setNewGroupOpen(false);
   };
@@ -388,6 +396,26 @@ function App() {
     }
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
     if (activeGroup === groupId) setActiveGroup(null);
+  };
+
+  const reorderGroups = async (targetId) => {
+    if (!draggedGroup || draggedGroup === targetId) {
+      setDraggedGroup(null);
+      setDragOverGroup(null);
+      return;
+    }
+    const list = [...groups];
+    const from = list.findIndex((g) => g.id === draggedGroup);
+    const to = list.findIndex((g) => g.id === targetId);
+    if (from === -1 || to === -1) return;
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
+    setGroups(list.map((g, i) => ({ ...g, order: i })));
+    setDraggedGroup(null);
+    setDragOverGroup(null);
+    const batch = writeBatch(db);
+    list.forEach((g, i) => batch.update(doc(db, "users", user.uid, "groups", g.id), { order: i }));
+    await batch.commit();
   };
 
   const saveBook = async (book, imageFile = null) => {
@@ -679,9 +707,38 @@ function App() {
                   key={g.id}
                   selected={activeGroup === g.id}
                   onClick={() => { setActiveGroup(g.id); setFilterAnchor(null); }}
-                  sx={{ fontSize: "0.84rem", display: "flex", justifyContent: "space-between", gap: 1.5 }}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    setDraggedGroup(g.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragOverGroup !== g.id) setDragOverGroup(g.id);
+                  }}
+                  onDragLeave={() => setDragOverGroup((prev) => (prev === g.id ? null : prev))}
+                  onDrop={(e) => { e.preventDefault(); reorderGroups(g.id); }}
+                  onDragEnd={() => { setDraggedGroup(null); setDragOverGroup(null); }}
+                  sx={{
+                    fontSize: "0.84rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 1.5,
+                    opacity: draggedGroup === g.id ? 0.35 : 1,
+                    boxShadow:
+                      dragOverGroup === g.id && draggedGroup !== g.id
+                        ? "inset 0 2px 0 0 #8c78ff"
+                        : "none",
+                    transition: "opacity 0.15s ease, box-shadow 0.1s ease",
+                  }}
                 >
-                  {g.name}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                    <DragIndicatorIcon
+                      sx={{ fontSize: 14, color: "rgba(220,215,245,0.2)", cursor: "grab", flexShrink: 0 }}
+                    />
+                    {g.name}
+                  </Box>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                     <Typography component="span" sx={{ fontFamily: '"DM Mono", monospace', fontSize: "0.68rem", color: "#5a5878" }}>
                       {books.filter((b) => b.groupIds?.includes(g.id)).length}
