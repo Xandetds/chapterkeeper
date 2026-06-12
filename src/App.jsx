@@ -301,6 +301,7 @@ function App() {
   const [activeGroups, setActiveGroups] = useState([]);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [editingGroup, setEditingGroup] = useState(null); // { id, name }
   const [query, setQuery] = useState("");
   const [openForm, setOpenForm] = useState(false);
   const [currentBook, setCurrentBook] = useState(null);
@@ -373,6 +374,14 @@ function App() {
     setGroups((prev) => [...prev, { id: docRef.id, name, order: prev.length, createdAt: new Date() }]);
     setNewGroupName("");
     setNewGroupOpen(false);
+  };
+
+  const renameGroup = async () => {
+    const name = editingGroup?.name.trim();
+    if (!name) return;
+    await updateDoc(doc(db, "users", user.uid, "groups", editingGroup.id), { name });
+    setGroups((prev) => prev.map((g) => (g.id === editingGroup.id ? { ...g, name } : g)));
+    setEditingGroup(null);
   };
 
   const deleteGroup = async (groupId) => {
@@ -763,6 +772,24 @@ function App() {
                     <Typography component="span" sx={{ fontFamily: '"DM Mono", monospace', fontSize: "0.68rem", color: "#5a5878" }}>
                       {books.filter((b) => b.groupIds?.includes(g.id)).length}
                     </Typography>
+                    <Tooltip title="Renomear etiqueta">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFilterAnchor(null);
+                          setEditingGroup({ id: g.id, name: g.name });
+                        }}
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          color: "rgba(220,215,245,0.25)",
+                          "&:hover": { color: "#a090ff", background: "rgba(140,120,255,0.1)" },
+                        }}
+                      >
+                        <EditIcon sx={{ fontSize: 12 }} />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Excluir etiqueta">
                       <IconButton
                         size="small"
@@ -833,6 +860,29 @@ function App() {
           <DialogActions sx={{ px: 3, pb: 2.5 }}>
             <Button onClick={() => { setNewGroupOpen(false); setNewGroupName(""); }}>Cancelar</Button>
             <Button variant="contained" onClick={createGroup} disabled={!newGroupName.trim()}>Criar</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Dialog: renomear etiqueta */}
+        <Dialog open={Boolean(editingGroup)} onClose={() => setEditingGroup(null)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ pb: 1, fontWeight: 600, fontSize: "1rem" }}>Renomear etiqueta</DialogTitle>
+          <DialogContent sx={{ pt: 1 }}>
+            <TextField
+              autoFocus
+              fullWidth
+              size="small"
+              placeholder="Nome da etiqueta…"
+              value={editingGroup?.name ?? ""}
+              onChange={(e) => setEditingGroup((g) => ({ ...g, name: e.target.value }))}
+              onKeyDown={(e) => e.key === "Enter" && renameGroup()}
+              margin="dense"
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button onClick={() => setEditingGroup(null)}>Cancelar</Button>
+            <Button variant="contained" onClick={renameGroup} disabled={!editingGroup?.name.trim()}>
+              Salvar
+            </Button>
           </DialogActions>
         </Dialog>
 
