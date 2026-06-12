@@ -469,7 +469,7 @@ function App() {
 
   const filtered = books.filter((b) => normalize(b.title).includes(normalize(query)));
   const displayedBooks = activeGroups.length
-    ? filtered.filter((b) => activeGroups.some((id) => b.groupIds?.includes(id)))
+    ? filtered.filter((b) => activeGroups.every((id) => b.groupIds?.includes(id)))
     : filtered;
 
   const openEdit = (book, e) => {
