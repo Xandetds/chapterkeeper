@@ -11,6 +11,7 @@ import {
   Divider,
   Tabs,
   Tab,
+  Chip,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
@@ -22,7 +23,7 @@ function formatDate(ts) {
   return d.toLocaleString("pt-BR");
 }
 
-const emptyForm = { id: null, title: "", chapter: "", url: "", imageUrl: "", groupId: "" };
+const emptyForm = { id: null, title: "", chapter: "", url: "", imageUrl: "", groupIds: [] };
 
 function BookForm({ open, handleClose, saveBook, deleteBook, currentBook, groups = [] }) {
   const [form, setForm] = useState(emptyForm);
@@ -41,7 +42,8 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook, groups
         chapter: currentBook.chapter || "",
         url: currentBook.url || "",
         imageUrl: currentBook.imageUrl || "",
-        groupId: currentBook.groupId || "",
+        // compat: livros antigos têm groupId (string única)
+        groupIds: currentBook.groupIds ?? (currentBook.groupId ? [currentBook.groupId] : []),
       });
       setImagePreview(currentBook.imageUrl || "");
       setImageMode("url");
@@ -55,6 +57,14 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook, groups
   }, [currentBook, open]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const toggleGroup = (id) =>
+    setForm((f) => ({
+      ...f,
+      groupIds: f.groupIds.includes(id)
+        ? f.groupIds.filter((x) => x !== id)
+        : [...f.groupIds, id],
+    }));
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -131,24 +141,49 @@ function BookForm({ open, handleClose, saveBook, deleteBook, currentBook, groups
           placeholder="https://..."
         />
 
-        {/* Grupo */}
+        {/* Etiquetas */}
         {groups.length > 0 && (
-          <TextField
-            select
-            label="Grupo"
-            name="groupId"
-            fullWidth
-            margin="dense"
-            value={form.groupId}
-            onChange={handleChange}
-            SelectProps={{ native: true }}
-            sx={{ mt: 0.5 }}
-          >
-            <option value="">Sem grupo</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </TextField>
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="caption" sx={{ color: "text.secondary", mb: 0.75, display: "block" }}>
+              Etiquetas
+            </Typography>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+              {groups.map((g) => {
+                const active = form.groupIds.includes(g.id);
+                return (
+                  <Chip
+                    key={g.id}
+                    label={g.name}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => toggleGroup(g.id)}
+                    sx={{
+                      fontSize: "0.74rem",
+                      height: 26,
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      ...(active
+                        ? {
+                            backgroundColor: "rgba(140,120,255,0.2)",
+                            borderColor: "rgba(140,120,255,0.5)",
+                            color: "#c4baff",
+                          }
+                        : {
+                            backgroundColor: "transparent",
+                            borderColor: "rgba(140,120,255,0.15)",
+                            color: "rgba(220,215,245,0.45)",
+                            "&:hover": {
+                              borderColor: "rgba(140,120,255,0.35)",
+                              color: "rgba(220,215,245,0.8)",
+                            },
+                          }),
+                    }}
+                  />
+                );
+              })}
+            </Box>
+          </Box>
         )}
 
         {/* Imagem */}

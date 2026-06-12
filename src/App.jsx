@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Divider,
   createTheme,
   ThemeProvider,
   CssBaseline,
@@ -25,6 +26,9 @@ import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import LogoutIcon from "@mui/icons-material/Logout";
+import FilterAltIcon from "@mui/icons-material/FilterAlt";
+import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
+import CloseIcon from "@mui/icons-material/Close";
 import { styled } from "@mui/material/styles";
 import BookForm from "./components/BookForm";
 import "./catalog.css";
@@ -106,6 +110,16 @@ const theme = createTheme({
           backgroundImage: "none",
           backgroundColor: "#16152a",
           border: "1px solid rgba(140, 120, 255, 0.1)",
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          "&.Mui-selected": {
+            backgroundColor: "rgba(140, 120, 255, 0.14)",
+            "&:hover": { backgroundColor: "rgba(140, 120, 255, 0.2)" },
+          },
         },
       },
     },
@@ -290,6 +304,7 @@ function App() {
   const [openForm, setOpenForm] = useState(false);
   const [currentBook, setCurrentBook] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [filterAnchor, setFilterAnchor] = useState(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setAuthLoading(false); });
@@ -314,7 +329,12 @@ function App() {
       const snap = await getDocs(collection(db, "users", uid, "books"));
       const list = snap.docs.map((d) => {
         const { id: _, ...data } = d.data();
-        return { id: d.id, ...data };
+        return {
+          id: d.id,
+          ...data,
+          // compat: livros antigos têm groupId (string única)
+          groupIds: data.groupIds ?? (data.groupId ? [data.groupId] : []),
+        };
       });
       list.sort((a, b) => {
         const ta = a.updatedAt?.toDate?.() ?? new Date(a.updatedAt ?? 0);
@@ -349,12 +369,22 @@ function App() {
 
   const deleteGroup = async (groupId) => {
     await deleteDoc(doc(db, "users", user.uid, "groups", groupId));
-    const toUpdate = books.filter((b) => b.groupId === groupId);
+    const toUpdate = books.filter((b) => b.groupIds?.includes(groupId));
     if (toUpdate.length > 0) {
       const batch = writeBatch(db);
-      toUpdate.forEach((b) => batch.update(doc(db, "users", user.uid, "books", b.id), { groupId: "" }));
+      toUpdate.forEach((b) =>
+        batch.update(doc(db, "users", user.uid, "books", b.id), {
+          groupIds: b.groupIds.filter((id) => id !== groupId),
+        })
+      );
       await batch.commit();
-      setBooks((prev) => prev.map((b) => (b.groupId === groupId ? { ...b, groupId: "" } : b)));
+      setBooks((prev) =>
+        prev.map((b) =>
+          b.groupIds?.includes(groupId)
+            ? { ...b, groupIds: b.groupIds.filter((id) => id !== groupId) }
+            : b
+        )
+      );
     }
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
     if (activeGroup === groupId) setActiveGroup(null);
@@ -378,7 +408,7 @@ function App() {
       chapter: book.chapter || "",
       url: book.url,
       imageUrl,
-      groupId: book.groupId || "",
+      groupIds: book.groupIds || [],
       updatedAt: serverTimestamp(),
     };
     if (book.id) {
@@ -406,7 +436,7 @@ function App() {
 
   const filtered = books.filter((b) => normalize(b.title).includes(normalize(query)));
   const displayedBooks = activeGroup
-    ? filtered.filter((b) => b.groupId === activeGroup)
+    ? filtered.filter((b) => b.groupIds?.includes(activeGroup))
     : filtered;
 
   const openEdit = (book, e) => {
@@ -589,6 +619,100 @@ function App() {
               />
             </SearchWrap>
 
+            {/* Chip do grupo ativo */}
+            {activeGroup && (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={groups.find((g) => g.id === activeGroup)?.name}
+                onDelete={() => setActiveGroup(null)}
+                sx={{ ...chipSx(true), display: { xs: "none", sm: "inline-flex" } }}
+              />
+            )}
+
+            {/* Filtro por grupo */}
+            <Tooltip title="Filtrar por etiqueta">
+              <IconButton
+                size="small"
+                onClick={(e) => setFilterAnchor(e.currentTarget)}
+                sx={{
+                  color: activeGroup ? "#8c78ff" : "rgba(220, 215, 245, 0.4)",
+                  border: "1px solid",
+                  borderColor: activeGroup ? "rgba(140,120,255,0.45)" : "rgba(140,120,255,0.12)",
+                  borderRadius: "7px",
+                  width: 34,
+                  height: 34,
+                  background: activeGroup ? "rgba(140,120,255,0.12)" : "rgba(140,120,255,0.05)",
+                  transition: "all 0.15s ease",
+                  "&:hover": {
+                    color: "#a090ff",
+                    borderColor: "rgba(140,120,255,0.4)",
+                    background: "rgba(140,120,255,0.1)",
+                  },
+                }}
+              >
+                {activeGroup ? <FilterAltIcon sx={{ fontSize: 17 }} /> : <FilterAltOutlinedIcon sx={{ fontSize: 17 }} />}
+              </IconButton>
+            </Tooltip>
+
+            {/* Menu de filtro */}
+            <Menu
+              anchorEl={filterAnchor}
+              open={Boolean(filterAnchor)}
+              onClose={() => setFilterAnchor(null)}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+              anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+              slotProps={{ paper: { sx: { minWidth: 190, mt: 0.5 } } }}
+            >
+              <MenuItem
+                selected={activeGroup === null}
+                onClick={() => { setActiveGroup(null); setFilterAnchor(null); }}
+                sx={{ fontSize: "0.84rem", display: "flex", justifyContent: "space-between", gap: 2 }}
+              >
+                Todos
+                <Typography component="span" sx={{ fontFamily: '"DM Mono", monospace', fontSize: "0.68rem", color: "#5a5878" }}>
+                  {books.length}
+                </Typography>
+              </MenuItem>
+              {groups.map((g) => (
+                <MenuItem
+                  key={g.id}
+                  selected={activeGroup === g.id}
+                  onClick={() => { setActiveGroup(g.id); setFilterAnchor(null); }}
+                  sx={{ fontSize: "0.84rem", display: "flex", justifyContent: "space-between", gap: 1.5 }}
+                >
+                  {g.name}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography component="span" sx={{ fontFamily: '"DM Mono", monospace', fontSize: "0.68rem", color: "#5a5878" }}>
+                      {books.filter((b) => b.groupIds?.includes(g.id)).length}
+                    </Typography>
+                    <Tooltip title="Excluir etiqueta">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => { e.stopPropagation(); deleteGroup(g.id); }}
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          color: "rgba(220,215,245,0.25)",
+                          "&:hover": { color: "#ff7878", background: "rgba(255,120,120,0.08)" },
+                        }}
+                      >
+                        <CloseIcon sx={{ fontSize: 12 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </MenuItem>
+              ))}
+              <Divider sx={{ my: 0.5 }} />
+              <MenuItem
+                onClick={() => { setFilterAnchor(null); setNewGroupOpen(true); }}
+                sx={{ fontSize: "0.82rem", color: "#8c78ff" }}
+              >
+                <AddIcon sx={{ fontSize: 15, mr: 1 }} />
+                Nova etiqueta
+              </MenuItem>
+            </Menu>
+
             {/* Avatar */}
             <Tooltip title={user.displayName || user.email}>
               <IconButton onClick={(e) => setAnchorEl(e.currentTarget)} sx={{ p: 0.4 }}>
@@ -614,70 +738,15 @@ function App() {
           </Toolbar>
         </AppBar>
 
-        {/* Grupo chips */}
-        <Box
-          sx={{
-            position: "sticky",
-            top: "50px",
-            zIndex: 900,
-            background: "rgba(13, 12, 26, 0.9)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            borderBottom: "1px solid rgba(140,120,255,0.08)",
-            px: { xs: 2, md: 4 },
-            py: 1,
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            overflowX: "auto",
-            scrollbarWidth: "none",
-            "&::-webkit-scrollbar": { display: "none" },
-          }}
-        >
-          <Chip
-            label="Todos"
-            size="small"
-            variant="outlined"
-            onClick={() => setActiveGroup(null)}
-            sx={chipSx(activeGroup === null)}
-          />
-          {groups.map((g) => (
-            <Chip
-              key={g.id}
-              label={g.name}
-              size="small"
-              variant="outlined"
-              onClick={() => setActiveGroup(g.id)}
-              onDelete={() => deleteGroup(g.id)}
-              sx={chipSx(activeGroup === g.id)}
-            />
-          ))}
-          <Tooltip title="Novo grupo">
-            <IconButton
-              size="small"
-              onClick={() => setNewGroupOpen(true)}
-              sx={{
-                color: "rgba(140,120,255,0.4)",
-                width: 26,
-                height: 26,
-                flexShrink: 0,
-                "&:hover": { color: "#8c78ff", background: "rgba(140,120,255,0.1)" },
-              }}
-            >
-              <AddIcon sx={{ fontSize: 15 }} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
         {/* Dialog: novo grupo */}
         <Dialog open={newGroupOpen} onClose={() => { setNewGroupOpen(false); setNewGroupName(""); }} maxWidth="xs" fullWidth>
-          <DialogTitle sx={{ pb: 1, fontWeight: 600, fontSize: "1rem" }}>Novo grupo</DialogTitle>
+          <DialogTitle sx={{ pb: 1, fontWeight: 600, fontSize: "1rem" }}>Nova etiqueta</DialogTitle>
           <DialogContent sx={{ pt: 1 }}>
             <TextField
               autoFocus
               fullWidth
               size="small"
-              placeholder="Nome do grupo…"
+              placeholder="Nome da etiqueta…"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && createGroup()}
@@ -720,7 +789,7 @@ function App() {
               <span className="empty-moon"><Moon size={32} /></span>
               <p className="empty-title">Nada por aqui</p>
               <p className="empty-sub">
-                {query ? `nenhum resultado para “${query}”` : "este grupo ainda não tem livros"}
+                {query ? `nenhum resultado para “${query}”` : "esta etiqueta ainda não tem livros"}
               </p>
             </div>
           ) : (
